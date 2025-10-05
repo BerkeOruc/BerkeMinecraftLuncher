@@ -36,7 +36,12 @@ colorama.init(autoreset=True)
 
 class MinecraftLauncher:
     def __init__(self):
-        self.console = Console()
+        # Terminal kontrolü
+        if sys.stdout.isatty():
+            self.console = Console(width=120)
+        else:
+            # Non-TTY için basit console
+            self.console = Console(force_terminal=False, legacy_windows=False)
         self.home_dir = Path.home()
         self.minecraft_dir = self.home_dir / ".minecraft"
         self.launcher_dir = self.home_dir / ".berke_minecraft_launcher"
@@ -62,22 +67,21 @@ class MinecraftLauncher:
         self.skin_api_url = "https://api.mojang.com/users/profiles/minecraft"
         
     def _find_java(self) -> Optional[str]:
-        """Sistemde Java'yı bul - Java 21+ öncelikli"""
+        """Sistemde Java'yı bul - Minecraft uyumlu sürümler öncelikli (17-21)"""
         # Önce JAVA_HOME kontrol et
         if os.environ.get('JAVA_HOME'):
             java_home_bin = os.path.join(os.environ['JAVA_HOME'], 'bin', 'java')
             if os.path.exists(java_home_bin):
+                print(f"🔍 JAVA_HOME'dan Java bulundu: {java_home_bin}")
                 return java_home_bin
         
-        # Java yollarını dene (yeni sürümler önce)
+        # Java yollarını dene (Minecraft uyumlu sürümler önce)
         java_paths = [
-            "/usr/lib/jvm/java-25-openjdk/bin/java",
-            "/usr/lib/jvm/java-24-openjdk/bin/java",
-            "/usr/lib/jvm/java-23-openjdk/bin/java",
-            "/usr/lib/jvm/java-22-openjdk/bin/java",
+            "/usr/lib/jvm/java-17-openjdk/bin/java",
             "/usr/lib/jvm/java-21-openjdk/bin/java",
-            "/usr/lib/jvm/java-openjdk/bin/java",
-            "/usr/lib/jvm/java-latest-openjdk/bin/java",
+            "/usr/lib/jvm/java-22-openjdk/bin/java",
+            "/usr/lib/jvm/java-23-openjdk/bin/java",
+            "/usr/lib/jvm/java-24-openjdk/bin/java",
             "/usr/lib/jvm/default/bin/java",
             "/usr/bin/java",
             "java"
@@ -87,11 +91,15 @@ class MinecraftLauncher:
             # Tam yol ise dosya var mı kontrol et
             if java_path.startswith("/"):
                 if os.path.exists(java_path):
+                    print(f"🔍 Java bulundu: {java_path}")
                     return java_path
             # Değilse which ile bul
             elif shutil.which(java_path):
-                return shutil.which(java_path)
+                found_path = shutil.which(java_path)
+                print(f"🔍 Java bulundu (which): {found_path}")
+                return found_path
                 
+        print("❌ Java bulunamadı!")
         return None
     
     def _load_config(self) -> Dict:
@@ -505,146 +513,154 @@ class MinecraftLauncher:
     
     def _download_version(self, version_id: str) -> bool:
         """Minecraft sürümü indir"""
-        versions = self._get_available_versions()
-        version_info = None
-        
-        for version in versions:
-            if version["id"] == version_id:
-                version_info = version
-                break
-        
-        if not version_info:
-            self.console.print(f"[red]Sürüm bulunamadı: {version_id}[/red]")
-            return False
-        
-        version_dir = self.versions_dir / version_id
-        version_dir.mkdir(exist_ok=True)
-        
-        # Sürüm JSON'unu indir
-        version_json_path = version_dir / f"{version_id}.json"
-        if not self._download_file(version_info["url"], version_json_path, f"{version_id} JSON"):
-            return False
-        
-        # Sürüm JSON'unu oku
         try:
-            with open(version_json_path, 'r') as f:
-                version_data = json.load(f)
-        except json.JSONDecodeError:
-            self.console.print(f"[red]Sürüm JSON'u okunamadı: {version_id}[/red]")
-            return False
-        
-        # Client JAR'ı indir (eski sürümler için hata yakalama)
-        try:
-            client_jar_url = version_data["downloads"]["client"]["url"]
-            client_jar_path = version_dir / f"{version_id}.jar"
-            if not self._download_file(client_jar_url, client_jar_path, f"{version_id} Client"):
+            self.console.print(f"[blue]🔍 Sürüm bilgileri alınıyor: {version_id}[/blue]")
+            versions = self._get_available_versions()
+            version_info = None
+            
+            for version in versions:
+                if version["id"] == version_id:
+                    version_info = version
+                    break
+            
+            if not version_info:
+                self.console.print(f"[red]❌ Sürüm bulunamadı: {version_id}[/red]")
                 return False
-        except KeyError:
-            self.console.print(f"[yellow]⚠️ Eski sürüm formatı tespit edildi, alternatif yöntem deneniyor...[/yellow]")
-            # Eski sürümler için alternatif URL
+            
+            version_dir = self.versions_dir / version_id
+            version_dir.mkdir(exist_ok=True)
+            
+            # Sürüm JSON'unu indir
+            version_json_path = version_dir / f"{version_id}.json"
+            if not self._download_file(version_info["url"], version_json_path, f"{version_id} JSON"):
+                return False
+            
+            # Sürüm JSON'unu oku
             try:
-                if "jar" in version_data:
-                    client_jar_url = version_data["jar"]["url"]
-                else:
-                    # Fallback: Mojang'ın eski URL yapısı
-                    client_jar_url = f"https://launcher.mojang.com/v1/objects/{version_data.get('id', version_id)}/{version_id}.jar"
-                
+                with open(version_json_path, 'r') as f:
+                    version_data = json.load(f)
+            except json.JSONDecodeError:
+                self.console.print(f"[red]Sürüm JSON'u okunamadı: {version_id}[/red]")
+                return False
+            
+            # Client JAR'ı indir (eski sürümler için hata yakalama)
+            try:
+                client_jar_url = version_data["downloads"]["client"]["url"]
                 client_jar_path = version_dir / f"{version_id}.jar"
                 if not self._download_file(client_jar_url, client_jar_path, f"{version_id} Client"):
-                    self.console.print(f"[red]❌ Client JAR indirilemedi![/red]")
                     return False
-            except Exception as e:
-                self.console.print(f"[red]❌ Client JAR bulunamadı: {e}[/red]")
-                return False
-        
-        # Assets indir (eski sürümler için opsiyonel)
-        try:
-            assets_index_url = version_data["assetIndex"]["url"]
-            assets_index_path = version_dir / "assets_index.json"
-            if not self._download_file(assets_index_url, assets_index_path, f"{version_id} Assets"):
-                self.console.print(f"[yellow]⚠️ Assets indirilemedi, devam ediliyor...[/yellow]")
-        except KeyError:
-            self.console.print(f"[yellow]⚠️ Bu sürümde asset index yok (çok eski sürüm)[/yellow]")
-        
-        # Kütüphaneleri PARALEL indir (HIZLI!)
-        libraries_dir = self.launcher_dir / "libraries"
-        libraries_dir.mkdir(exist_ok=True)
-        
-        if "libraries" in version_data:
-            self.console.print(f"[blue]📚 Kütüphaneler paralel indiriliyor (ULTRA HIZLI!)...[/blue]")
-            
-            # İndirilecek kütüphaneleri topla
-            download_tasks = []
-            for lib in version_data["libraries"]:
+            except KeyError:
+                self.console.print(f"[yellow]⚠️ Eski sürüm formatı tespit edildi, alternatif yöntem deneniyor...[/yellow]")
+                # Eski sürümler için alternatif URL
                 try:
-                    if "downloads" in lib and "artifact" in lib["downloads"]:
-                        artifact = lib["downloads"]["artifact"]
-                        lib_url = artifact["url"]
-                        lib_path = libraries_dir / artifact["path"]
-                        
-                        # Sadece eksik olanları indir (cache kontrolü)
-                        if not lib_path.exists():
-                            download_tasks.append((lib_url, lib_path, lib['name']))
-                    elif "name" in lib and "url" in lib:
-                        # Eski sürüm formatı
-                        lib_name = lib["name"]
-                        lib_url = lib["url"]
-                        # Maven path oluştur
-                        parts = lib_name.split(":")
-                        if len(parts) >= 3:
-                            group, artifact, version = parts[0], parts[1], parts[2]
-                            lib_path = libraries_dir / group.replace(".", "/") / artifact / version / f"{artifact}-{version}.jar"
-                            if not lib_path.exists():
-                                download_tasks.append((lib_url, lib_path, lib_name))
+                    if "jar" in version_data:
+                        client_jar_url = version_data["jar"]["url"]
+                    else:
+                        # Fallback: Mojang'ın eski URL yapısı
+                        client_jar_url = f"https://launcher.mojang.com/v1/objects/{version_data.get('id', version_id)}/{version_id}.jar"
+                    
+                    client_jar_path = version_dir / f"{version_id}.jar"
+                    if not self._download_file(client_jar_url, client_jar_path, f"{version_id} Client"):
+                        self.console.print(f"[red]❌ Client JAR indirilemedi![/red]")
+                        return False
                 except Exception as e:
-                    self.console.print(f"[yellow]⚠️ Kütüphane atlandı: {lib.get('name', 'unknown')} - {e}[/yellow]")
-                    continue
+                    self.console.print(f"[red]❌ Client JAR bulunamadı: {e}[/red]")
+                    return False
             
-            if download_tasks:
-                # Paralel indirme (8 thread)
-                start_time = time.time()
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    BarColumn(),
-                    TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-                    DownloadColumn(),
-                    TransferSpeedColumn(),
-                    TimeElapsedColumn(),
-                    console=self.console
-                ) as progress:
-                    task = progress.add_task(f"[cyan]Kütüphaneler", total=len(download_tasks))
-                    
-                    def download_lib(url, path, name):
-                        try:
-                            path.parent.mkdir(parents=True, exist_ok=True)
-                            response = requests.get(url, timeout=30)
-                            response.raise_for_status()
-                            with open(path, 'wb') as f:
-                                f.write(response.content)
-                            return True, name
-                        except Exception as e:
-                            return False, name
-                    
-                    # 16 paralel thread ile indir (ultra hızlı)
-                    with ThreadPoolExecutor(max_workers=16) as executor:
-                        futures = {executor.submit(download_lib, url, path, name): name 
-                                 for url, path, name in download_tasks}
-                        
-                        for future in as_completed(futures):
-                            success, name = future.result()
-                            if not success:
-                                self.console.print(f"[yellow]⚠️ Atlandı: {name}[/yellow]")
-                            progress.update(task, advance=1)
+            # Assets indir (eski sürümler için opsiyonel)
+            try:
+                assets_index_url = version_data["assetIndex"]["url"]
+                assets_index_path = version_dir / "assets_index.json"
+                if not self._download_file(assets_index_url, assets_index_path, f"{version_id} Assets"):
+                    self.console.print(f"[yellow]⚠️ Assets indirilemedi, devam ediliyor...[/yellow]")
+            except KeyError:
+                self.console.print(f"[yellow]⚠️ Bu sürümde asset index yok (çok eski sürüm)[/yellow]")
+            
+            # Kütüphaneleri PARALEL indir (HIZLI!)
+            libraries_dir = self.launcher_dir / "libraries"
+            libraries_dir.mkdir(exist_ok=True)
+            
+            if "libraries" in version_data:
+                self.console.print(f"[blue]📚 Kütüphaneler paralel indiriliyor (ULTRA HIZLI!)...[/blue]")
                 
-                elapsed = time.time() - start_time
-                speed = len(download_tasks) / elapsed if elapsed > 0 else 0
-                self.console.print(f"[green]✅ {len(download_tasks)} kütüphane indirildi ({elapsed:.1f}s, {speed:.1f} dosya/s)[/green]")
-            else:
-                self.console.print(f"[green]✅ Tüm kütüphaneler cache'de mevcut![/green]")
+                # İndirilecek kütüphaneleri topla
+                download_tasks = []
+                for lib in version_data["libraries"]:
+                    try:
+                        if "downloads" in lib and "artifact" in lib["downloads"]:
+                            artifact = lib["downloads"]["artifact"]
+                            lib_url = artifact["url"]
+                            lib_path = libraries_dir / artifact["path"]
+                            
+                            # Sadece eksik olanları indir (cache kontrolü)
+                            if not lib_path.exists():
+                                download_tasks.append((lib_url, lib_path, lib['name']))
+                        elif "name" in lib and "url" in lib:
+                            # Eski sürüm formatı
+                            lib_name = lib["name"]
+                            lib_url = lib["url"]
+                            # Maven path oluştur
+                            parts = lib_name.split(":")
+                            if len(parts) >= 3:
+                                group, artifact, version = parts[0], parts[1], parts[2]
+                                lib_path = libraries_dir / group.replace(".", "/") / artifact / version / f"{artifact}-{version}.jar"
+                                if not lib_path.exists():
+                                    download_tasks.append((lib_url, lib_path, lib_name))
+                    except Exception as e:
+                        self.console.print(f"[yellow]⚠️ Kütüphane atlandı: {lib.get('name', 'unknown')} - {e}[/yellow]")
+                        continue
+                
+                if download_tasks:
+                    # Paralel indirme (8 thread)
+                    start_time = time.time()
+                    with Progress(
+                        SpinnerColumn(),
+                        TextColumn("[progress.description]{task.description}"),
+                        BarColumn(),
+                        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+                        DownloadColumn(),
+                        TransferSpeedColumn(),
+                        TimeElapsedColumn(),
+                        console=self.console
+                    ) as progress:
+                        task = progress.add_task(f"[cyan]Kütüphaneler", total=len(download_tasks))
+                        
+                        def download_lib(url, path, name):
+                            try:
+                                path.parent.mkdir(parents=True, exist_ok=True)
+                                response = requests.get(url, timeout=30)
+                                response.raise_for_status()
+                                with open(path, 'wb') as f:
+                                    f.write(response.content)
+                                return True, name
+                            except Exception as e:
+                                return False, name
+                        
+                        # 16 paralel thread ile indir (ultra hızlı)
+                        with ThreadPoolExecutor(max_workers=16) as executor:
+                            futures = {executor.submit(download_lib, url, path, name): name 
+                                     for url, path, name in download_tasks}
+                            
+                            for future in as_completed(futures):
+                                success, name = future.result()
+                                if not success:
+                                    self.console.print(f"[yellow]⚠️ Atlandı: {name}[/yellow]")
+                                progress.update(task, advance=1)
+                    
+                    elapsed = time.time() - start_time
+                    speed = len(download_tasks) / elapsed if elapsed > 0 else 0
+                    self.console.print(f"[green]✅ {len(download_tasks)} kütüphane indirildi ({elapsed:.1f}s, {speed:.1f} dosya/s)[/green]")
+                else:
+                    self.console.print(f"[green]✅ Tüm kütüphaneler cache'de mevcut![/green]")
         
-        self.console.print(f"[green]✅ Sürüm başarıyla indirildi: {version_id}[/green]")
-        return True
+            self.console.print(f"[green]✅ Sürüm başarıyla indirildi: {version_id}[/green]")
+            return True
+            
+        except Exception as e:
+            self.console.print(f"[red]❌ İndirme hatası: {e}[/red]")
+            import traceback
+            self.console.print(f"[dim]Detay: {traceback.format_exc()}[/dim]")
+            return False
     
     def _get_installed_versions(self) -> List[str]:
         """İndirilen sürümleri listele"""
@@ -678,9 +694,9 @@ class MinecraftLauncher:
         system_info = self._get_system_info()
         memory_gb = float(system_info["memory"].split()[0])
         
-        # Bellek optimizasyonu
+        # Bellek optimizasyonu (Java 17 için daha düşük)
         if self.config["memory"] == "auto":
-            max_memory = min(int(memory_gb * 0.6), 8)  # Sistem belleğinin %60'ı, max 8GB
+            max_memory = min(int(memory_gb * 0.4), 4)  # Sistem belleğinin %40'ı, max 4GB
         else:
             max_memory = int(self.config["memory"])
         
@@ -708,19 +724,13 @@ class MinecraftLauncher:
             "-XX:+DisableExplicitGC",
             "-XX:+AlwaysPreTouch",  # Belleği önceden ayır
             
-            # G1GC Ultra Tuning (Aikar's Flags Enhanced + Network Optimized)
-            "-XX:G1NewSizePercent=40",
-            "-XX:G1MaxNewSizePercent=50",
+            # G1GC Tuning (Java 17 uyumlu)
+            "-XX:G1NewSizePercent=30",
+            "-XX:G1MaxNewSizePercent=40",
             "-XX:G1HeapRegionSize=16M",
             "-XX:G1ReservePercent=15",
             "-XX:G1HeapWastePercent=5",
-            "-XX:G1MixedGCCountTarget=3",
-            "-XX:InitiatingHeapOccupancyPercent=10",
-            "-XX:G1MixedGCLiveThresholdPercent=90",  # Online için optimize
-            "-XX:G1RSetUpdatingPauseTimePercent=5",
-            "-XX:SurvivorRatio=32",
-            "-XX:+PerfDisableSharedMem",
-            "-XX:MaxTenuringThreshold=1",
+            "-XX:InitiatingHeapOccupancyPercent=15",
             
             # Network Optimizasyonları (Online Server için)
             "-Djava.net.preferIPv4Stack=true",
@@ -746,6 +756,9 @@ class MinecraftLauncher:
             "-Dawt.useSystemAAFontSettings=on",
             "-Dswing.aatext=true",
             
+            # LWJGL Native Library Path
+            f"-Dorg.lwjgl.librarypath={self.versions_dir.parent / 'libraries'}",
+            
             # Minecraft Özel Optimizasyonlar + Online Server Support
             "-Dminecraft.launcher.brand=berke-ultra-launcher",
             "-Dminecraft.launcher.version=2.3.0",
@@ -764,13 +777,9 @@ class MinecraftLauncher:
             "-Dio.netty.leakDetection.level=disabled",
             "-Dio.netty.recycler.maxCapacityPerThread=0",
             
-            # Thread Optimizasyonları
-            "-XX:ConcGCThreads=4",
-            "-XX:ParallelGCThreads=8",
-            
-            # Memory Leak Prevention
-            "-XX:+UseStringCache",
-            "-XX:StringTableSize=1000003"
+            # Thread Optimizasyonları (Java 17 uyumlu)
+            "-XX:ConcGCThreads=2",
+            "-XX:ParallelGCThreads=4"
         ]
         
         # Özel JVM argümanlarını ekle
@@ -831,7 +840,7 @@ class MinecraftLauncher:
             "--username", self.config["username"],
             "--version", version_id,
             "--gameDir", str(self.minecraft_dir),
-            "--assetsDir", str(self.minecraft_dir / "assets"),
+            "--assetsDir", str(self.minecraft_dir.parent / "assets"),
         ]
         
         # Asset index (eski sürümlerde olmayabilir)
@@ -868,11 +877,16 @@ class MinecraftLauncher:
             
             # Java sürüm kontrolü
             java_version = self._check_java_version()
-            if java_version and java_version < 21:
+            if java_version and java_version < 17:
                 self.console.print(f"[red]⚠️ Java Sürüm Uyarısı![/red]")
                 self.console.print(f"[yellow]Mevcut Java sürümü: {java_version}[/yellow]")
-                self.console.print(f"[yellow]Minecraft için Java 21+ gerekli![/yellow]")
-                self.console.print(f"[cyan]Çözüm: sudo pacman -S jdk-openjdk[/cyan]")
+                self.console.print(f"[yellow]Minecraft için Java 17+ gerekli![/yellow]")
+                self.console.print(f"[cyan]Çözüm: sudo pacman -S jdk17-openjdk[/cyan]")
+            elif java_version and java_version > 21:
+                self.console.print(f"[yellow]⚠️ Java Sürüm Uyarısı![/yellow]")
+                self.console.print(f"[yellow]Mevcut Java sürümü: {java_version} (Beta)[/yellow]")
+                self.console.print(f"[yellow]Minecraft için Java 17-21 önerilir![/yellow]")
+                self.console.print(f"[cyan]Çözüm: sudo pacman -S jdk17-openjdk[/cyan]")
                 
                 if not Confirm.ask("Yine de devam etmek istiyor musunuz?"):
                     return
@@ -967,6 +981,7 @@ class MinecraftLauncher:
                 if process.poll() is None:
                     # Başarılı - Kaynak izleme ekranına geç
                     self._show_game_monitor(process, version_id, log_file)
+                    return  # Ana menüye dönme
                 else:
                     # Hata oluştu - log dosyasını oku
                     time.sleep(1)  # Log yazılması için bekle
@@ -979,30 +994,44 @@ class MinecraftLauncher:
                     self.console.print("[red]❌ Minecraft başlatılamadı![/red]")
                     self._show_detailed_error("", log_content, command, current_env)
                     input("[dim]Enter...[/dim]")
+                    return  # Ana menüye dön
             else:
-                process = subprocess.Popen(
-                    command,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                    env=current_env
-                )
+                # Log dosyası oluştur
+                log_dir = self.launcher_dir / "logs"
+                log_dir.mkdir(exist_ok=True)
                 
+                import datetime
+                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                log_file = log_dir / f"minecraft_{version_id}_{timestamp}.log"
+                
+                # Minecraft'ı arka planda başlat (çıktıyı log dosyasına yaz)
+                with open(log_file, 'w') as log:
+                    process = subprocess.Popen(
+                        command,
+                        stdout=log,
+                        stderr=subprocess.STDOUT,
+                        env=current_env,
+                        start_new_session=True
+                    )
+                
+                # Başlatma mesajı
                 self.console.print("[green]✅ Minecraft başlatıldı![/green]")
-                self.console.print("[blue]Oyunu kapatmak için Ctrl+C tuşlarına basın.[/blue]")
-                self.console.print("[yellow]💡 Eğer oyun penceresi görünmüyorsa, Alt+Tab ile pencereler arasında geçiş yapın.[/yellow]")
+                self.console.print(f"[blue]📋 Sürüm: {version_id}[/blue]")
+                self.console.print(f"[blue]🔢 Process ID: {process.pid}[/blue]")
+                self.console.print("[yellow]💡 Minecraft penceresi açılmasını bekleyin...[/yellow]")
+                self.console.print("[dim]Oyunu kapatmak için Ctrl+C tuşlarına basın.[/dim]")
                 
-                # Çıktıyı göster
-                while True:
-                    output = process.stdout.readline()
-                    if output == '' and process.poll() is not None:
-                        break
-                    if output:
-                        print(output.strip())
+                # Kısa bekleme sonrası monitoring'e geç
+                import time
+                time.sleep(3)
+                self._show_game_monitor(process, version_id, log_file)
+                return  # Ana menüye dönme
             
         except Exception as e:
             self.console.print(f"[red]❌ Başlatma hatası: {e}[/red]")
             self._show_troubleshooting_tips()
+            input("[dim]Enter...[/dim]")
+            return  # Ana menüye dön
     
     def _pre_launch_check(self):
         """Başlatma öncesi sistem kontrolü"""
@@ -1058,7 +1087,10 @@ class MinecraftLauncher:
         self.console.print("[red]❌ Detaylı Hata Raporu:[/red]")
         
         # Hata mesajlarını analiz et
-        error_lines = stderr.decode('utf-8', errors='ignore').split('\n')
+        if isinstance(stderr, bytes):
+            error_lines = stderr.decode('utf-8', errors='ignore').split('\n')
+        else:
+            error_lines = str(stderr).split('\n')
         
         # JVM hatalarını kontrol et
         jvm_errors = []
@@ -1097,7 +1129,10 @@ class MinecraftLauncher:
         # Çıktı bilgisi
         if stderr:
             self.console.print(f"\n[yellow]📤 Stderr:[/yellow]")
-            stderr_text = stderr.decode('utf-8', errors='ignore')
+            if isinstance(stderr, bytes):
+                stderr_text = stderr.decode('utf-8', errors='ignore')
+            else:
+                stderr_text = str(stderr)
             # Sadece önemli satırları göster
             important_lines = []
             for line in stderr_text.split('\n'):
@@ -2798,6 +2833,853 @@ class MinecraftLauncher:
         
         self.console.print(table)
     
+    def _show_version_management_menu(self):
+        """İndirilmiş sürümleri yönet - silme, düzenleme"""
+        os.system('clear')
+        
+        # İndirilmiş sürümleri bul
+        installed_versions = []
+        if self.versions_dir.exists():
+            for version_dir in self.versions_dir.iterdir():
+                if version_dir.is_dir():
+                    json_file = version_dir / f"{version_dir.name}.json"
+                    if json_file.exists():
+                        installed_versions.append(version_dir.name)
+        
+        if not installed_versions:
+            self.console.print(Panel(
+                "[bold yellow]HIC SURUM YOK[/bold yellow]\n"
+                "[dim]Once surum indirmeniz gerekiyor[/dim]",
+                border_style="yellow",
+                padding=(1, 2)
+            ))
+            input("[dim]Enter...[/dim]")
+            return
+        
+        self.console.print(Panel(
+            "[bold cyan]SURUM YONETIMI[/bold cyan]\n"
+            f"[dim]Toplam: {len(installed_versions)} surum[/dim]",
+            border_style="cyan",
+            padding=(1, 2)
+        ))
+        
+        self.console.print()
+        
+        # Sürüm listesi
+        for i, version in enumerate(installed_versions, 1):
+            version_dir = self.versions_dir / version
+            size_mb = sum(f.stat().st_size for f in version_dir.rglob('*') if f.is_file()) / (1024*1024)
+            
+            self.console.print(f"  [cyan]{i:2}[/cyan]  {version:15}  [dim]{size_mb:.1f} MB[/dim]")
+        
+        self.console.print("\n[dim]0 = Geri | Numara = Sec | S = Tumunu Sil[/dim]")
+        
+        try:
+            choice_input = Prompt.ask("\n[cyan]>[/cyan]")
+            
+            if choice_input == "0":
+                return
+            elif choice_input.upper() == "S":
+                if Confirm.ask("Tüm sürümleri silmek istediğinizden emin misiniz?", default=False):
+                    import shutil
+                    shutil.rmtree(self.versions_dir)
+                    self.console.print("[green]✅ Tüm sürümler silindi![/green]")
+                    input("[dim]Enter...[/dim]")
+                return
+            
+            choice = int(choice_input)
+            
+            if 1 <= choice <= len(installed_versions):
+                version_id = installed_versions[choice-1]
+                self._show_version_edit_menu(version_id)
+                
+        except ValueError:
+            self.console.print("[red]❌ Geçersiz seçim![/red]")
+            input("[dim]Enter...[/dim]")
+    
+    def _show_version_edit_menu(self, version_id: str):
+        """Tek sürüm düzenleme menüsü"""
+        while True:
+            os.system('clear')
+            
+            version_dir = self.versions_dir / version_id
+            size_mb = sum(f.stat().st_size for f in version_dir.rglob('*') if f.is_file()) / (1024*1024)
+            
+            self.console.print(Panel(
+                f"[bold cyan]SURUM DUZENLE[/bold cyan]\n"
+                f"[dim]Surum: {version_id}[/dim]\n"
+                f"[dim]Boyut: {size_mb:.1f} MB[/dim]",
+                border_style="cyan",
+                padding=(1, 2)
+            ))
+            
+            table = Table(show_header=False, box=None, padding=(0, 2))
+            table.add_column("Seçenek", style="cyan", width=20)
+            table.add_column("Açıklama", style="dim")
+            
+            table.add_row("1", "Sürümü Başlat")
+            table.add_row("2", "Sürümü Sil")
+            table.add_row("3", "Modları Yönet")
+            table.add_row("4", "Resource Pack Yönet")
+            table.add_row("5", "Shader Yönet")
+            table.add_row("6", "Dünya Yönetimi")
+            table.add_row("0", "Geri")
+            
+            self.console.print(table)
+            
+            choice = Prompt.ask("\n[cyan]>[/cyan]", choices=["0", "1", "2", "3", "4", "5", "6"])
+            
+            if choice == "0":
+                return
+            elif choice == "1":
+                self._launch_minecraft(version_id)
+                return
+            elif choice == "2":
+                if Confirm.ask(f"'{version_id}' sürümünü silmek istediğinizden emin misiniz?", default=False):
+                    import shutil
+                    shutil.rmtree(version_dir)
+                    self.console.print("[green]✅ Sürüm silindi![/green]")
+                    input("[dim]Enter...[/dim]")
+                    return
+            elif choice == "3":
+                self._show_mod_management_menu(version_id)
+            elif choice == "4":
+                self._show_resource_pack_menu(version_id)
+            elif choice == "5":
+                self._show_shader_menu(version_id)
+            elif choice == "6":
+                self._show_world_management_menu(version_id)
+
+    def _show_mod_management_menu(self, version_id: str):
+        """Mod yönetim menüsü - Forge desteği ile"""
+        while True:
+            os.system('clear')
+            
+            mods_dir = self.versions_dir / version_id / "mods"
+            mods_dir.mkdir(exist_ok=True)
+            
+            # Mevcut modları listele
+            mod_files = list(mods_dir.glob("*.jar"))
+            
+            self.console.print(Panel(
+                f"[bold cyan]MOD YONETIMI[/bold cyan]\n"
+                f"[dim]Surum: {version_id}[/dim]\n"
+                f"[dim]Toplam: {len(mod_files)} mod[/dim]",
+                border_style="cyan",
+                padding=(1, 2)
+            ))
+            
+            table = Table(show_header=False, box=None, padding=(0, 2))
+            table.add_column("Seçenek", style="cyan", width=20)
+            table.add_column("Açıklama", style="dim")
+            
+            table.add_row("1", "Mod Ekle (Dosya)")
+            table.add_row("2", "Modrinth'ten Ara")
+            table.add_row("3", "Modları Listele")
+            table.add_row("4", "Mod Sil")
+            table.add_row("5", "Forge Kur")
+            table.add_row("0", "Geri")
+            
+            self.console.print(table)
+            
+            choice = Prompt.ask("\n[cyan]>[/cyan]", choices=["0", "1", "2", "3", "4", "5"])
+            
+            if choice == "0":
+                return
+            elif choice == "1":
+                self._add_mod_from_file(version_id)
+            elif choice == "2":
+                self._search_and_install_mod(version_id)
+            elif choice == "3":
+                self._list_mods(version_id)
+            elif choice == "4":
+                self._delete_mod(version_id)
+            elif choice == "5":
+                self._install_forge(version_id)
+
+    def _add_mod_from_file(self, version_id: str):
+        """Dosyadan mod ekle"""
+        self.console.print("\n[cyan]Mod dosyası yolunu girin:[/cyan]")
+        file_path = Prompt.ask("[cyan]>[/cyan]")
+        
+        if not os.path.exists(file_path):
+            self.console.print("[red]❌ Dosya bulunamadı![/red]")
+            input("[dim]Enter...[/dim]")
+            return
+        
+        if not file_path.endswith('.jar'):
+            self.console.print("[red]❌ Sadece .jar dosyaları desteklenir![/red]")
+            input("[dim]Enter...[/dim]")
+            return
+        
+        mods_dir = self.versions_dir / version_id / "mods"
+        mods_dir.mkdir(exist_ok=True)
+        
+        filename = os.path.basename(file_path)
+        dest_path = mods_dir / filename
+        
+        import shutil
+        shutil.copy2(file_path, dest_path)
+        
+        self.console.print("[green]✅ Mod başarıyla eklendi![/green]")
+        input("[dim]Enter...[/dim]")
+
+    def _search_and_install_mod(self, version_id: str):
+        """Modrinth'ten mod ara ve yükle"""
+        self.console.print("\n[cyan]Mod adı girin:[/cyan]")
+        search_query = Prompt.ask("[cyan]>[/cyan]")
+        
+        if not search_query:
+            return
+        
+        try:
+            # Modrinth API'den ara
+            url = f"https://api.modrinth.com/v2/search?query={search_query}&limit=10"
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            
+            data = response.json()
+            mods = data.get("hits", [])
+            
+            if not mods:
+                self.console.print("[yellow]⚠️ Mod bulunamadı![/yellow]")
+                input("[dim]Enter...[/dim]")
+                return
+            
+            self.console.print(f"\n[green]{len(mods)} mod bulundu:[/green]\n")
+            
+            for i, mod in enumerate(mods, 1):
+                title = mod.get("title", "Bilinmeyen")
+                downloads = mod.get("downloads", 0)
+                self.console.print(f"  [cyan]{i:2}[/cyan]  {title:30} [dim]{downloads} indirme[/dim]")
+            
+            self.console.print("\n[dim]Numara = Sec | 0 = Geri[/dim]")
+            choice = int(Prompt.ask("\n[cyan]>[/cyan]"))
+            
+            if choice == 0:
+                return
+            
+            if 1 <= choice <= len(mods):
+                selected_mod = mods[choice-1]
+                self._install_mod_from_modrinth(version_id, selected_mod)
+                
+        except Exception as e:
+            self.console.print(f"[red]❌ Hata: {e}[/red]")
+            input("[dim]Enter...[/dim]")
+
+    def _install_mod_from_modrinth(self, version_id: str, mod_data: dict):
+        """Modrinth'ten mod yükle"""
+        try:
+            mod_id = mod_data["project_id"]
+            mod_title = mod_data["title"]
+            
+            # Mod sürümlerini al
+            url = f"https://api.modrinth.com/v2/project/{mod_id}/version"
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            
+            versions = response.json()
+            if not versions:
+                self.console.print("[yellow]⚠️ Mod sürümü bulunamadı![/yellow]")
+                input("[dim]Enter...[/dim]")
+                return
+            
+            # Uyumlu sürüm bul
+            compatible_version = None
+            for version in versions:
+                game_versions = version.get("game_versions", [])
+                if version_id in game_versions:
+                    compatible_version = version
+                    break
+            
+            if not compatible_version:
+                self.console.print(f"[yellow]⚠️ {version_id} için uyumlu sürüm bulunamadı![/yellow]")
+                input("[dim]Enter...[/dim]")
+                return
+            
+            # İndirme URL'si al
+            files = compatible_version.get("files", [])
+            if not files:
+                self.console.print("[red]❌ İndirme dosyası bulunamadı![/red]")
+                input("[dim]Enter...[/dim]")
+                return
+            
+            download_url = files[0]["url"]
+            filename = files[0]["filename"]
+            
+            # Modu indir
+            mods_dir = self.versions_dir / version_id / "mods"
+            mods_dir.mkdir(exist_ok=True)
+            
+            self.console.print(f"[cyan]İndiriliyor: {mod_title}...[/cyan]")
+            
+            response = requests.get(download_url, timeout=30)
+            response.raise_for_status()
+            
+            with open(mods_dir / filename, 'wb') as f:
+                f.write(response.content)
+            
+            self.console.print("[green]✅ Mod başarıyla yüklendi![/green]")
+            input("[dim]Enter...[/dim]")
+            
+        except Exception as e:
+            self.console.print(f"[red]❌ Hata: {e}[/red]")
+            input("[dim]Enter...[/dim]")
+
+    def _list_mods(self, version_id: str):
+        """Modları listele"""
+        mods_dir = self.versions_dir / version_id / "mods"
+        
+        if not mods_dir.exists():
+            self.console.print("[yellow]⚠️ Mod dizini bulunamadı![/yellow]")
+            input("[dim]Enter...[/dim]")
+            return
+        
+        mod_files = list(mods_dir.glob("*.jar"))
+        
+        if not mod_files:
+            self.console.print("[yellow]⚠️ Hiç mod bulunamadı![/yellow]")
+            input("[dim]Enter...[/dim]")
+            return
+        
+        self.console.print(f"\n[green]Toplam {len(mod_files)} mod:[/green]\n")
+        
+        for i, mod_file in enumerate(mod_files, 1):
+            size_mb = mod_file.stat().st_size / (1024*1024)
+            self.console.print(f"  [cyan]{i:2}[/cyan]  {mod_file.name:40} [dim]{size_mb:.1f} MB[/dim]")
+        
+        input("\n[dim]Enter...[/dim]")
+
+    def _delete_mod(self, version_id: str):
+        """Mod sil"""
+        mods_dir = self.versions_dir / version_id / "mods"
+        
+        if not mods_dir.exists():
+            self.console.print("[yellow]⚠️ Mod dizini bulunamadı![/yellow]")
+            input("[dim]Enter...[/dim]")
+            return
+        
+        mod_files = list(mods_dir.glob("*.jar"))
+        
+        if not mod_files:
+            self.console.print("[yellow]⚠️ Hiç mod bulunamadı![/yellow]")
+            input("[dim]Enter...[/dim]")
+            return
+        
+        self.console.print(f"\n[green]Silinecek mod seçin:[/green]\n")
+        
+        for i, mod_file in enumerate(mod_files, 1):
+            size_mb = mod_file.stat().st_size / (1024*1024)
+            self.console.print(f"  [cyan]{i:2}[/cyan]  {mod_file.name:40} [dim]{size_mb:.1f} MB[/dim]")
+        
+        self.console.print("\n[dim]0 = Geri[/dim]")
+        
+        try:
+            choice = int(Prompt.ask("\n[cyan]>[/cyan]"))
+            
+            if choice == 0:
+                return
+            
+            if 1 <= choice <= len(mod_files):
+                mod_file = mod_files[choice-1]
+                if Confirm.ask(f"'{mod_file.name}' modunu silmek istediğinizden emin misiniz?", default=False):
+                    mod_file.unlink()
+                    self.console.print("[green]✅ Mod silindi![/green]")
+                    input("[dim]Enter...[/dim]")
+                    
+        except ValueError:
+            self.console.print("[red]❌ Geçersiz seçim![/red]")
+            input("[dim]Enter...[/dim]")
+
+    def _install_forge(self, version_id: str):
+        """Forge yükle"""
+        self.console.print(f"\n[cyan]Forge yükleniyor: {version_id}[/cyan]")
+        
+        try:
+            # Forge installer'ı indir
+            forge_url = f"https://maven.minecraftforge.net/net/minecraftforge/forge/{version_id}/forge-{version_id}-installer.jar"
+            
+            self.console.print("[cyan]Forge installer indiriliyor...[/cyan]")
+            
+            response = requests.get(forge_url, timeout=30)
+            response.raise_for_status()
+            
+            installer_path = self.versions_dir / f"forge-installer-{version_id}.jar"
+            with open(installer_path, 'wb') as f:
+                f.write(response.content)
+            
+            # Forge'u yükle
+            self.console.print("[cyan]Forge yükleniyor...[/cyan]")
+            
+            import subprocess
+            result = subprocess.run([
+                self.java_executable,
+                "-jar", str(installer_path),
+                "--installServer"
+            ], capture_output=True, text=True, cwd=str(self.versions_dir / version_id))
+            
+            if result.returncode == 0:
+                self.console.print("[green]✅ Forge başarıyla yüklendi![/green]")
+                
+                # Installer'ı sil
+                installer_path.unlink(missing_ok=True)
+                
+                input("[dim]Enter...[/dim]")
+            else:
+                self.console.print(f"[red]❌ Forge yüklenemedi: {result.stderr}[/red]")
+                input("[dim]Enter...[/dim]")
+                
+        except Exception as e:
+            self.console.print(f"[red]❌ Hata: {e}[/red]")
+            input("[dim]Enter...[/dim]")
+
+    def _show_resource_pack_menu(self, version_id: str):
+        """Resource Pack yönetim menüsü"""
+        resource_packs_dir = self.versions_dir / version_id / "resourcepacks"
+        resource_packs_dir.mkdir(exist_ok=True)
+        
+        resource_packs = list(resource_packs_dir.glob("*.zip"))
+        
+        self.console.print(Panel(
+            f"[bold cyan]RESOURCE PACK YONETIMI[/bold cyan]\n"
+            f"[dim]Surum: {version_id}[/dim]\n"
+            f"[dim]Toplam: {len(resource_packs)} pack[/dim]",
+            border_style="cyan",
+            padding=(1, 2)
+        ))
+        
+        table = Table(show_header=False, box=None, padding=(0, 2))
+        table.add_column("Seçenek", style="cyan", width=20)
+        table.add_column("Açıklama", style="dim")
+        
+        table.add_row("1", "Resource Pack Ekle")
+        table.add_row("2", "Resource Pack'leri Listele")
+        table.add_row("3", "Resource Pack Sil")
+        table.add_row("0", "Geri")
+        
+        self.console.print(table)
+        
+        choice = Prompt.ask("\n[cyan]>[/cyan]", choices=["0", "1", "2", "3"])
+        
+        if choice == "1":
+            self._add_resource_pack(version_id)
+        elif choice == "2":
+            self._list_resource_packs(version_id)
+        elif choice == "3":
+            self._delete_resource_pack(version_id)
+
+    def _add_resource_pack(self, version_id: str):
+        """Resource Pack ekle"""
+        self.console.print("\n[cyan]Resource Pack dosyası yolunu girin:[/cyan]")
+        file_path = Prompt.ask("[cyan]>[/cyan]")
+        
+        if not os.path.exists(file_path):
+            self.console.print("[red]❌ Dosya bulunamadı![/red]")
+            input("[dim]Enter...[/dim]")
+            return
+        
+        if not file_path.endswith('.zip'):
+            self.console.print("[red]❌ Sadece .zip dosyaları desteklenir![/red]")
+            input("[dim]Enter...[/dim]")
+            return
+        
+        resource_packs_dir = self.versions_dir / version_id / "resourcepacks"
+        resource_packs_dir.mkdir(exist_ok=True)
+        
+        filename = os.path.basename(file_path)
+        dest_path = resource_packs_dir / filename
+        
+        import shutil
+        shutil.copy2(file_path, dest_path)
+        
+        self.console.print("[green]✅ Resource Pack başarıyla eklendi![/green]")
+        input("[dim]Enter...[/dim]")
+
+    def _list_resource_packs(self, version_id: str):
+        """Resource Pack'leri listele"""
+        resource_packs_dir = self.versions_dir / version_id / "resourcepacks"
+        
+        if not resource_packs_dir.exists():
+            self.console.print("[yellow]⚠️ Resource Pack dizini bulunamadı![/yellow]")
+            input("[dim]Enter...[/dim]")
+            return
+        
+        resource_packs = list(resource_packs_dir.glob("*.zip"))
+        
+        if not resource_packs:
+            self.console.print("[yellow]⚠️ Hiç Resource Pack bulunamadı![/yellow]")
+            input("[dim]Enter...[/dim]")
+            return
+        
+        self.console.print(f"\n[green]Toplam {len(resource_packs)} Resource Pack:[/green]\n")
+        
+        for i, pack in enumerate(resource_packs, 1):
+            size_mb = pack.stat().st_size / (1024*1024)
+            self.console.print(f"  [cyan]{i:2}[/cyan]  {pack.name:40} [dim]{size_mb:.1f} MB[/dim]")
+        
+        input("\n[dim]Enter...[/dim]")
+
+    def _delete_resource_pack(self, version_id: str):
+        """Resource Pack sil"""
+        resource_packs_dir = self.versions_dir / version_id / "resourcepacks"
+        
+        if not resource_packs_dir.exists():
+            self.console.print("[yellow]⚠️ Resource Pack dizini bulunamadı![/yellow]")
+            input("[dim]Enter...[/dim]")
+            return
+        
+        resource_packs = list(resource_packs_dir.glob("*.zip"))
+        
+        if not resource_packs:
+            self.console.print("[yellow]⚠️ Hiç Resource Pack bulunamadı![/yellow]")
+            input("[dim]Enter...[/dim]")
+            return
+        
+        self.console.print(f"\n[green]Silinecek Resource Pack seçin:[/green]\n")
+        
+        for i, pack in enumerate(resource_packs, 1):
+            size_mb = pack.stat().st_size / (1024*1024)
+            self.console.print(f"  [cyan]{i:2}[/cyan]  {pack.name:40} [dim]{size_mb:.1f} MB[/dim]")
+        
+        self.console.print("\n[dim]0 = Geri[/dim]")
+        
+        try:
+            choice = int(Prompt.ask("\n[cyan]>[/cyan]"))
+            
+            if choice == 0:
+                return
+            
+            if 1 <= choice <= len(resource_packs):
+                pack = resource_packs[choice-1]
+                if Confirm.ask(f"'{pack.name}' Resource Pack'ini silmek istediğinizden emin misiniz?", default=False):
+                    pack.unlink()
+                    self.console.print("[green]✅ Resource Pack silindi![/green]")
+                    input("[dim]Enter...[/dim]")
+                    
+        except ValueError:
+            self.console.print("[red]❌ Geçersiz seçim![/red]")
+            input("[dim]Enter...[/dim]")
+
+    def _show_shader_menu(self, version_id: str):
+        """Shader yönetim menüsü"""
+        shaders_dir = self.versions_dir / version_id / "shaderpacks"
+        shaders_dir.mkdir(exist_ok=True)
+        
+        shaders = list(shaders_dir.glob("*.zip"))
+        
+        self.console.print(Panel(
+            f"[bold cyan]SHADER YONETIMI[/bold cyan]\n"
+            f"[dim]Surum: {version_id}[/dim]\n"
+            f"[dim]Toplam: {len(shaders)} shader[/dim]",
+            border_style="cyan",
+            padding=(1, 2)
+        ))
+        
+        table = Table(show_header=False, box=None, padding=(0, 2))
+        table.add_column("Seçenek", style="cyan", width=20)
+        table.add_column("Açıklama", style="dim")
+        
+        table.add_row("1", "Shader Ekle")
+        table.add_row("2", "Shader'leri Listele")
+        table.add_row("3", "Shader Sil")
+        table.add_row("0", "Geri")
+        
+        self.console.print(table)
+        
+        choice = Prompt.ask("\n[cyan]>[/cyan]", choices=["0", "1", "2", "3"])
+        
+        if choice == "1":
+            self._add_shader(version_id)
+        elif choice == "2":
+            self._list_shaders(version_id)
+        elif choice == "3":
+            self._delete_shader(version_id)
+
+    def _add_shader(self, version_id: str):
+        """Shader ekle"""
+        self.console.print("\n[cyan]Shader dosyası yolunu girin:[/cyan]")
+        file_path = Prompt.ask("[cyan]>[/cyan]")
+        
+        if not os.path.exists(file_path):
+            self.console.print("[red]❌ Dosya bulunamadı![/red]")
+            input("[dim]Enter...[/dim]")
+            return
+        
+        if not file_path.endswith('.zip'):
+            self.console.print("[red]❌ Sadece .zip dosyaları desteklenir![/red]")
+            input("[dim]Enter...[/dim]")
+            return
+        
+        shaders_dir = self.versions_dir / version_id / "shaderpacks"
+        shaders_dir.mkdir(exist_ok=True)
+        
+        filename = os.path.basename(file_path)
+        dest_path = shaders_dir / filename
+        
+        import shutil
+        shutil.copy2(file_path, dest_path)
+        
+        self.console.print("[green]✅ Shader başarıyla eklendi![/green]")
+        input("[dim]Enter...[/dim]")
+
+    def _list_shaders(self, version_id: str):
+        """Shader'leri listele"""
+        shaders_dir = self.versions_dir / version_id / "shaderpacks"
+        
+        if not shaders_dir.exists():
+            self.console.print("[yellow]⚠️ Shader dizini bulunamadı![/yellow]")
+            input("[dim]Enter...[/dim]")
+            return
+        
+        shaders = list(shaders_dir.glob("*.zip"))
+        
+        if not shaders:
+            self.console.print("[yellow]⚠️ Hiç shader bulunamadı![/yellow]")
+            input("[dim]Enter...[/dim]")
+            return
+        
+        self.console.print(f"\n[green]Toplam {len(shaders)} shader:[/green]\n")
+        
+        for i, shader in enumerate(shaders, 1):
+            size_mb = shader.stat().st_size / (1024*1024)
+            self.console.print(f"  [cyan]{i:2}[/cyan]  {shader.name:40} [dim]{size_mb:.1f} MB[/dim]")
+        
+        input("\n[dim]Enter...[/dim]")
+
+    def _delete_shader(self, version_id: str):
+        """Shader sil"""
+        shaders_dir = self.versions_dir / version_id / "shaderpacks"
+        
+        if not shaders_dir.exists():
+            self.console.print("[yellow]⚠️ Shader dizini bulunamadı![/yellow]")
+            input("[dim]Enter...[/dim]")
+            return
+        
+        shaders = list(shaders_dir.glob("*.zip"))
+        
+        if not shaders:
+            self.console.print("[yellow]⚠️ Hiç shader bulunamadı![/yellow]")
+            input("[dim]Enter...[/dim]")
+            return
+        
+        self.console.print(f"\n[green]Silinecek shader seçin:[/green]\n")
+        
+        for i, shader in enumerate(shaders, 1):
+            size_mb = shader.stat().st_size / (1024*1024)
+            self.console.print(f"  [cyan]{i:2}[/cyan]  {shader.name:40} [dim]{size_mb:.1f} MB[/dim]")
+        
+        self.console.print("\n[dim]0 = Geri[/dim]")
+        
+        try:
+            choice = int(Prompt.ask("\n[cyan]>[/cyan]"))
+            
+            if choice == 0:
+                return
+            
+            if 1 <= choice <= len(shaders):
+                shader = shaders[choice-1]
+                if Confirm.ask(f"'{shader.name}' shader'ini silmek istediğinizden emin misiniz?", default=False):
+                    shader.unlink()
+                    self.console.print("[green]✅ Shader silindi![/green]")
+                    input("[dim]Enter...[/dim]")
+                    
+        except ValueError:
+            self.console.print("[red]❌ Geçersiz seçim![/red]")
+            input("[dim]Enter...[/dim]")
+
+    def _show_world_management_menu(self, version_id: str):
+        """Dünya yönetim menüsü"""
+        saves_dir = self.versions_dir / version_id / "saves"
+        saves_dir.mkdir(exist_ok=True)
+        
+        worlds = [d for d in saves_dir.iterdir() if d.is_dir()]
+        
+        self.console.print(Panel(
+            f"[bold cyan]DUNYA YONETIMI[/bold cyan]\n"
+            f"[dim]Surum: {version_id}[/dim]\n"
+            f"[dim]Toplam: {len(worlds)} dunya[/dim]",
+            border_style="cyan",
+            padding=(1, 2)
+        ))
+        
+        table = Table(show_header=False, box=None, padding=(0, 2))
+        table.add_column("Seçenek", style="cyan", width=20)
+        table.add_column("Açıklama", style="dim")
+        
+        table.add_row("1", "Dünyaları Listele")
+        table.add_row("2", "Dünya Sil")
+        table.add_row("3", "Dünya Kopyala")
+        table.add_row("4", "Dünya Adını Değiştir")
+        table.add_row("0", "Geri")
+        
+        self.console.print(table)
+        
+        choice = Prompt.ask("\n[cyan]>[/cyan]", choices=["0", "1", "2", "3", "4"])
+        
+        if choice == "1":
+            self._list_worlds(version_id)
+        elif choice == "2":
+            self._delete_world(version_id)
+        elif choice == "3":
+            self._copy_world(version_id)
+        elif choice == "4":
+            self._rename_world(version_id)
+
+    def _list_worlds(self, version_id: str):
+        """Dünyaları listele"""
+        saves_dir = self.versions_dir / version_id / "saves"
+        
+        if not saves_dir.exists():
+            self.console.print("[yellow]⚠️ Saves dizini bulunamadı![/yellow]")
+            input("[dim]Enter...[/dim]")
+            return
+        
+        worlds = [d for d in saves_dir.iterdir() if d.is_dir()]
+        
+        if not worlds:
+            self.console.print("[yellow]⚠️ Hiç dünya bulunamadı![/yellow]")
+            input("[dim]Enter...[/dim]")
+            return
+        
+        self.console.print(f"\n[green]Toplam {len(worlds)} dünya:[/green]\n")
+        
+        for i, world in enumerate(worlds, 1):
+            size_mb = sum(f.stat().st_size for f in world.rglob('*') if f.is_file()) / (1024*1024)
+            self.console.print(f"  [cyan]{i:2}[/cyan]  {world.name:40} [dim]{size_mb:.1f} MB[/dim]")
+        
+        input("\n[dim]Enter...[/dim]")
+
+    def _delete_world(self, version_id: str):
+        """Dünya sil"""
+        saves_dir = self.versions_dir / version_id / "saves"
+        
+        if not saves_dir.exists():
+            self.console.print("[yellow]⚠️ Saves dizini bulunamadı![/yellow]")
+            input("[dim]Enter...[/dim]")
+            return
+        
+        worlds = [d for d in saves_dir.iterdir() if d.is_dir()]
+        
+        if not worlds:
+            self.console.print("[yellow]⚠️ Hiç dünya bulunamadı![/yellow]")
+            input("[dim]Enter...[/dim]")
+            return
+        
+        self.console.print(f"\n[green]Silinecek dünya seçin:[/green]\n")
+        
+        for i, world in enumerate(worlds, 1):
+            size_mb = sum(f.stat().st_size for f in world.rglob('*') if f.is_file()) / (1024*1024)
+            self.console.print(f"  [cyan]{i:2}[/cyan]  {world.name:40} [dim]{size_mb:.1f} MB[/dim]")
+        
+        self.console.print("\n[dim]0 = Geri[/dim]")
+        
+        try:
+            choice = int(Prompt.ask("\n[cyan]>[/cyan]"))
+            
+            if choice == 0:
+                return
+            
+            if 1 <= choice <= len(worlds):
+                world = worlds[choice-1]
+                if Confirm.ask(f"'{world.name}' dünyasını silmek istediğinizden emin misiniz?", default=False):
+                    import shutil
+                    shutil.rmtree(world)
+                    self.console.print("[green]✅ Dünya silindi![/green]")
+                    input("[dim]Enter...[/dim]")
+                    
+        except ValueError:
+            self.console.print("[red]❌ Geçersiz seçim![/red]")
+            input("[dim]Enter...[/dim]")
+
+    def _copy_world(self, version_id: str):
+        """Dünya kopyala"""
+        saves_dir = self.versions_dir / version_id / "saves"
+        
+        if not saves_dir.exists():
+            self.console.print("[yellow]⚠️ Saves dizini bulunamadı![/yellow]")
+            input("[dim]Enter...[/dim]")
+            return
+        
+        worlds = [d for d in saves_dir.iterdir() if d.is_dir()]
+        
+        if not worlds:
+            self.console.print("[yellow]⚠️ Hiç dünya bulunamadı![/yellow]")
+            input("[dim]Enter...[/dim]")
+            return
+        
+        self.console.print(f"\n[green]Kopyalanacak dünya seçin:[/green]\n")
+        
+        for i, world in enumerate(worlds, 1):
+            size_mb = sum(f.stat().st_size for f in world.rglob('*') if f.is_file()) / (1024*1024)
+            self.console.print(f"  [cyan]{i:2}[/cyan]  {world.name:40} [dim]{size_mb:.1f} MB[/dim]")
+        
+        self.console.print("\n[dim]0 = Geri[/dim]")
+        
+        try:
+            choice = int(Prompt.ask("\n[cyan]>[/cyan]"))
+            
+            if choice == 0:
+                return
+            
+            if 1 <= choice <= len(worlds):
+                world = worlds[choice-1]
+                new_name = Prompt.ask(f"Yeni dünya adı (şu anki: {world.name})")
+                
+                if new_name and new_name != world.name:
+                    import shutil
+                    dest = saves_dir / new_name
+                    shutil.copytree(world, dest)
+                    self.console.print("[green]✅ Dünya kopyalandı![/green]")
+                    input("[dim]Enter...[/dim]")
+                    
+        except ValueError:
+            self.console.print("[red]❌ Geçersiz seçim![/red]")
+            input("[dim]Enter...[/dim]")
+
+    def _rename_world(self, version_id: str):
+        """Dünya adını değiştir"""
+        saves_dir = self.versions_dir / version_id / "saves"
+        
+        if not saves_dir.exists():
+            self.console.print("[yellow]⚠️ Saves dizini bulunamadı![/yellow]")
+            input("[dim]Enter...[/dim]")
+            return
+        
+        worlds = [d for d in saves_dir.iterdir() if d.is_dir()]
+        
+        if not worlds:
+            self.console.print("[yellow]⚠️ Hiç dünya bulunamadı![/yellow]")
+            input("[dim]Enter...[/dim]")
+            return
+        
+        self.console.print(f"\n[green]Adı değiştirilecek dünya seçin:[/green]\n")
+        
+        for i, world in enumerate(worlds, 1):
+            size_mb = sum(f.stat().st_size for f in world.rglob('*') if f.is_file()) / (1024*1024)
+            self.console.print(f"  [cyan]{i:2}[/cyan]  {world.name:40} [dim]{size_mb:.1f} MB[/dim]")
+        
+        self.console.print("\n[dim]0 = Geri[/dim]")
+        
+        try:
+            choice = int(Prompt.ask("\n[cyan]>[/cyan]"))
+            
+            if choice == 0:
+                return
+            
+            if 1 <= choice <= len(worlds):
+                world = worlds[choice-1]
+                new_name = Prompt.ask(f"Yeni dünya adı (şu anki: {world.name})")
+                
+                if new_name and new_name != world.name:
+                    dest = saves_dir / new_name
+                    world.rename(dest)
+                    self.console.print("[green]✅ Dünya adı değiştirildi![/green]")
+                    input("[dim]Enter...[/dim]")
+                    
+        except ValueError:
+            self.console.print("[red]❌ Geçersiz seçim![/red]")
+            input("[dim]Enter...[/dim]")
+
     def _show_versions_menu(self):
         """Sürüm menüsünü göster - Gelişmiş arama ile"""
         os.system('clear')
@@ -2865,17 +3747,31 @@ class MinecraftLauncher:
         if len(versions) > 20:
             self.console.print(f"\n[dim]... ve {len(versions) - 20} surum daha[/dim]")
         
-        self.console.print("\n[dim]0 = Geri | Numara = Indir[/dim]")
+        self.console.print("\n[dim]0 = Geri | Numara = Indir | D = Yonetim | M = Modlar[/dim]")
         
         try:
-            choice = int(Prompt.ask("\n[cyan]>[/cyan]"))
+            choice_input = Prompt.ask("\n[cyan]>[/cyan]")
             
-            if choice == 0:
+            if choice_input == "0":
                 return
+            elif choice_input.upper() == "D":
+                self._show_version_management_menu()
+                return
+            elif choice_input.upper() == "M":
+                self._show_mod_menu()
+                return
+            
+            choice = int(choice_input)
             
             if 1 <= choice <= len(versions[:20]):
                 version_id = versions[choice-1]["id"]
-                self._download_version(version_id)
+                if self._download_version(version_id):
+                    self.console.print("[green]✅ Sürüm başarıyla indirildi![/green]")
+                    if Confirm.ask("Şimdi başlatmak ister misiniz?", default=True):
+                        self._launch_minecraft(version_id)
+                else:
+                    self.console.print("[red]❌ Sürüm indirilemedi![/red]")
+                    input("[dim]Enter...[/dim]")
             else:
                 self.console.print("\n[red]Gecersiz secim![/red]\n")
                 input("[dim]Enter...[/dim]")
@@ -2944,9 +3840,12 @@ class MinecraftLauncher:
     
     def run(self):
         """Ana launcher döngüsü - Minimal TUI"""
+        print("DEBUG: run() başladı")
         while True:
-            # Ekranı temizle
-            os.system('clear' if os.name == 'posix' else 'cls')
+            # TTY kontrolü yap
+            if sys.stdout.isatty():
+                # Ekranı temizle
+                os.system('clear' if os.name == 'posix' else 'cls')
             
             # Banner göster
             self.console.print(self._create_banner())
@@ -3053,13 +3952,17 @@ class MinecraftLauncher:
 
 def main():
     """Ana fonksiyon"""
+    print("🚀 BerkeMC başlatılıyor...")
     try:
         launcher = MinecraftLauncher()
+        print("✅ Launcher oluşturuldu, çalıştırılıyor...")
         launcher.run()
     except KeyboardInterrupt:
         print("\n👋 Görüşürüz!")
     except Exception as e:
         print(f"❌ Hata: {e}")
+        import traceback
+        traceback.print_exc()
 
 if __name__ == "__main__":
     main()

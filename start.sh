@@ -13,26 +13,12 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-# Virtual environment kontrolü
-if [ ! -d "venv" ]; then
-    echo -e "${YELLOW}⚠ Virtual environment bulunamadı!${NC}"
-    echo -e "${CYAN}Oluşturuluyor...${NC}"
-    python -m venv venv
-    source venv/bin/activate
-    pip install --upgrade pip > /dev/null 2>&1
-    pip install -r requirements.txt
-    echo -e "${GREEN}✓ Virtual environment hazır${NC}"
-else
-    source venv/bin/activate
-fi
+# Sistem Python kullan (paketler zaten yüklü)
+echo -e "${GREEN}✓ Sistem Python kullanılıyor${NC}"
 
-# Python paketlerini kontrol et
-if ! python -c "import rich" 2>/dev/null; then
-    echo -e "${YELLOW}⚠ Gerekli paketler eksik!${NC}"
-    echo -e "${CYAN}Yükleniyor...${NC}"
-    pip install -r requirements.txt
-    echo -e "${GREEN}✓ Paketler yüklendi${NC}"
-fi
+# JAVA_HOME'u ayarla (Java 17 için)
+export JAVA_HOME="/usr/lib/jvm/java-17-openjdk"
+echo -e "${GREEN}✓ JAVA_HOME ayarlandı: $JAVA_HOME${NC}"
 
 # Java kontrolü
 if ! command -v java &> /dev/null; then
@@ -43,7 +29,33 @@ if ! command -v java &> /dev/null; then
 fi
 
 # Launcher'ı başlat
-clear
+if [ -t 1 ]; then
+    clear
+fi
+
+# VS Code/Cursor terminal kontrolü - Her zaman dış terminalde aç
+if [[ "$TERM_PROGRAM" == "cursor" ]] || [[ "$TERM_PROGRAM" == "vscode" ]] || [[ "$TERMINAL_EMULATOR" == *"cursor"* ]] || [[ "$TERM" == *"cursor"* ]]; then
+    echo -e "${YELLOW}⚠️  Cursor terminal tespit edildi!${NC}"
+    echo -e "${CYAN}Launcher dış terminalde açılıyor...${NC}"
+    
+    # Dış terminalde aç
+    if command -v kitty &> /dev/null; then
+        kitty --hold bash -c "cd '$PWD' && python3 berke_minecraft_launcher.py" 2>/dev/null &
+    elif command -v gnome-terminal &> /dev/null; then
+        gnome-terminal -- bash -c "cd '$PWD' && python3 berke_minecraft_launcher.py; echo ''; echo 'Çıkmak için Enter...'; read" 2>/dev/null &
+    elif command -v xterm &> /dev/null; then
+        xterm -e "cd '$PWD' && python3 berke_minecraft_launcher.py; echo ''; echo 'Çıkmak için Enter...'; read" 2>/dev/null &
+    elif command -v konsole &> /dev/null; then
+        konsole --new-tab -e bash -c "cd '$PWD' && python3 berke_minecraft_launcher.py; echo ''; echo 'Çıkmak için Enter...'; read" 2>/dev/null &
+    else
+        echo -e "${RED}✗ Uygun terminal bulunamadı!${NC}"
+        echo -e "${CYAN}Manuel olarak terminal açıp çalıştırın:${NC}"
+        echo -e "${GREEN}  cd $PWD && python3 berke_minecraft_launcher.py${NC}"
+        exit 1
+    fi
+    exit 0
+fi
+
 python berke_minecraft_launcher.py
 
 # Çıkış kodu
