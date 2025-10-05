@@ -1,0 +1,20 @@
+pkgbase = berkemc
+	pkgdesc = Ultra-fast terminal-based Minecraft launcher optimized for Arch Linux
+	pkgver = 2.3.1
+	pkgrel = 1
+	url = https://github.com/berke0/BerkeMinecraftLuncher
+	arch = any
+	license = MIT
+	makedepends = git
+	depends = python>=3.10
+	depends = python-requests
+	depends = python-rich
+	depends = python-colorama
+	depends = python-psutil
+	depends = jdk-openjdk
+	optdepends = hyprland: Wayland compositor support
+	optdepends = xorg-server: X11 support
+	source = git+https://github.com/berke0/BerkeMinecraftLuncher.git
+	sha256sums = SKIP
+
+pkgname = berkemc
