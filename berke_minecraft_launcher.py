@@ -2329,91 +2329,131 @@ class MinecraftLauncher:
         input("[dim]Enter...[/dim]")
     
     def _show_game_monitor(self, process, version_id: str, log_file):
-        """Oyun çalışırken kaynak izleme - Büyük barlar"""
+        """Oyun çalışırken kaynak izleme - Minecraft başlamasına izin ver"""
         import psutil
         import time
         
+        # İlk başta tek seferlik bilgi göster
+        self.console.print("[green]✅ Minecraft başlatıldı![/green]")
+        self.console.print(f"[blue]📋 Sürüm: {version_id}[/blue]")
+        self.console.print(f"[blue]🔢 Process ID: {process.pid}[/blue]")
+        self.console.print("[yellow]💡 Minecraft penceresi açılmasını bekleyin...[/yellow]")
+        self.console.print("[dim]Oyunu kapatmak için Ctrl+C tuşlarına basın.[/dim]")
+        self.console.print("[cyan]Kaynak izleme için 'm' tuşuna basın.[/cyan]")
+        
+        # Minecraft'ın başlaması için yeterli zaman ver
+        time.sleep(5)
+        
+        # Basit bir monitoring döngüsü (sürekli clear yok)
         while True:
-            os.system('clear')
-            
-            # Banner
-            self.console.print(Panel(
-                f"[bold cyan]MINECRAFT CALISIY OR[/bold cyan]\n"
-                f"[white]Surum: {version_id}[/white]\n"
-                f"[dim]PID: {process.pid}[/dim]",
-                border_style="green",
-                padding=(1, 2)
-            ))
-            
-            # Process hala çalışıyor mu?
-            if process.poll() is not None:
-                self.console.print("\n[yellow]Minecraft kapandi![/yellow]\n")
-                input("[dim]Enter...[/dim]")
-                return
-            
             try:
-                # Process bilgisi
-                p = psutil.Process(process.pid)
+                # Process hala çalışıyor mu?
+                if process.poll() is not None:
+                    self.console.print("\n[yellow]Minecraft kapandı![/yellow]")
+                    input("[dim]Enter...[/dim]")
+                    return
                 
-                # CPU kullanımı
-                cpu_percent = p.cpu_percent(interval=0.5)
-                cpu_bar = self._create_bar(cpu_percent, 100, 50, "CPU")
-                
-                # RAM kullanımı
-                mem_info = p.memory_info()
-                mem_mb = mem_info.rss / (1024 * 1024)
-                mem_percent = p.memory_percent()
-                mem_bar = self._create_bar(mem_percent, 100, 50, "RAM")
-                
-                # Sistem genel
-                sys_cpu = psutil.cpu_percent(interval=0.1)
-                sys_mem = psutil.virtual_memory().percent
-                
-                # Göster
-                self.console.print()
-                self.console.print(Panel(
-                    f"[cyan]Minecraft Process:[/cyan]\n\n"
-                    f"{cpu_bar}\n"
-                    f"[dim]Kullanim: {cpu_percent:.1f}%[/dim]\n\n"
-                    f"{mem_bar}\n"
-                    f"[dim]Kullanim: {mem_mb:.0f} MB ({mem_percent:.1f}%)[/dim]",
-                    title="[bold white]KAYNAK KULLANIMI[/bold white]",
-                    border_style="cyan",
-                    padding=(1, 2)
-                ))
-                
-                self.console.print()
-                sys_cpu_bar = self._create_bar(sys_cpu, 100, 50, "SYS CPU")
-                sys_mem_bar = self._create_bar(sys_mem, 100, 50, "SYS RAM")
-                
-                self.console.print(Panel(
-                    f"[yellow]Sistem Geneli:[/yellow]\n\n"
-                    f"{sys_cpu_bar}\n"
-                    f"[dim]{sys_cpu:.1f}%[/dim]\n\n"
-                    f"{sys_mem_bar}\n"
-                    f"[dim]{sys_mem:.1f}%[/dim]",
-                    title="[bold white]SISTEM[/bold white]",
-                    border_style="yellow",
-                    padding=(1, 2)
-                ))
-                
-                self.console.print("\n[dim]q = Cikis | r = Yenile[/dim]")
-                
-                # 2 saniye bekle veya tuş basımı
+                # Non-blocking input check (1 saniye timeout)
                 import select
                 import sys
                 
-                # Non-blocking input check
-                i, o, e = select.select([sys.stdin], [], [], 2.0)
+                i, o, e = select.select([sys.stdin], [], [], 1.0)
                 if i:
                     key = sys.stdin.readline().strip()
-                    if key.lower() == 'q':
+                    if key.lower() == 'm':
+                        # Monitoring ekranını göster (sadece istek üzerine)
+                        self._show_detailed_monitor(process, version_id)
+                    elif key.lower() == 'q':
+                        self.console.print("[yellow]Minecraft kapatılıyor...[/yellow]")
+                        process.terminate()
                         return
                 
+                # Her 30 saniyede bir basit durum güncellemesi
+                if int(time.time()) % 30 == 0:
+                    try:
+                        p = psutil.Process(process.pid)
+                        cpu_percent = p.cpu_percent()
+                        mem_mb = p.memory_info().rss / (1024 * 1024)
+                        self.console.print(f"[dim]Durum: CPU {cpu_percent:.1f}% | RAM {mem_mb:.0f}MB | PID {process.pid}[/dim]")
+                    except:
+                        pass
+                
             except (psutil.NoSuchProcess, psutil.AccessDenied):
-                self.console.print("\n[yellow]Process bilgisi alinamadi![/yellow]\n")
+                self.console.print("\n[yellow]Minecraft kapandı![/yellow]")
                 input("[dim]Enter...[/dim]")
                 return
+            except KeyboardInterrupt:
+                self.console.print("\n[yellow]Minecraft kapatılıyor...[/yellow]")
+                process.terminate()
+                return
+    
+    def _show_detailed_monitor(self, process, version_id: str):
+        """Detaylı monitoring ekranı (isteğe bağlı)"""
+        import psutil
+        import time
+        
+        os.system('clear')
+        
+        # Banner
+        self.console.print(Panel(
+            f"[bold cyan]MINECRAFT MONITORING[/bold cyan]\n"
+            f"[white]Sürüm: {version_id}[/white]\n"
+            f"[dim]PID: {process.pid}[/dim]",
+            border_style="green",
+            padding=(1, 2)
+        ))
+        
+        # Process bilgisi
+        try:
+            p = psutil.Process(process.pid)
+            
+            # CPU kullanımı
+            cpu_percent = p.cpu_percent(interval=0.5)
+            cpu_bar = self._create_bar(cpu_percent, 100, 50, "CPU")
+            
+            # RAM kullanımı
+            mem_info = p.memory_info()
+            mem_mb = mem_info.rss / (1024 * 1024)
+            mem_percent = p.memory_percent()
+            mem_bar = self._create_bar(mem_percent, 100, 50, "RAM")
+            
+            # Sistem genel
+            sys_cpu = psutil.cpu_percent(interval=0.1)
+            sys_mem = psutil.virtual_memory().percent
+            
+            # Göster
+            self.console.print()
+            self.console.print(Panel(
+                f"[cyan]Minecraft Process:[/cyan]\n\n"
+                f"{cpu_bar}\n"
+                f"[dim]Kullanım: {cpu_percent:.1f}%[/dim]\n\n"
+                f"{mem_bar}\n"
+                f"[dim]Kullanım: {mem_mb:.0f} MB ({mem_percent:.1f}%)[/dim]",
+                title="[bold white]KAYNAK KULLANIMI[/bold white]",
+                border_style="cyan",
+                padding=(1, 2)
+            ))
+            
+            self.console.print()
+            sys_cpu_bar = self._create_bar(sys_cpu, 100, 50, "SYS CPU")
+            sys_mem_bar = self._create_bar(sys_mem, 100, 50, "SYS RAM")
+            
+            self.console.print(Panel(
+                f"[yellow]Sistem Geneli:[/yellow]\n\n"
+                f"{sys_cpu_bar}\n"
+                f"[dim]{sys_cpu:.1f}%[/dim]\n\n"
+                f"{sys_mem_bar}\n"
+                f"[dim]{sys_mem:.1f}%[/dim]",
+                title="[bold white]SISTEM[/bold white]",
+                border_style="yellow",
+                padding=(1, 2)
+            ))
+            
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            self.console.print("[red]Process bilgisi alınamadı![/red]")
+        
+        self.console.print("\n[dim]Enter = Geri dön[/dim]")
+        input()
     
     def _create_bar(self, value: float, max_value: float, width: int, label: str) -> str:
         """Büyük progress bar oluştur"""
