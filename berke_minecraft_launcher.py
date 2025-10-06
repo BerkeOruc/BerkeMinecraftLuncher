@@ -77,6 +77,7 @@ class MinecraftLauncher:
         
         # Java yollarını dene (Minecraft uyumlu sürümler önce)
         java_paths = [
+            "/usr/lib/jvm/java-25-openjdk/bin/java",
             "/usr/lib/jvm/java-17-openjdk/bin/java",
             "/usr/lib/jvm/java-21-openjdk/bin/java",
             "/usr/lib/jvm/java-22-openjdk/bin/java",
@@ -258,7 +259,6 @@ class MinecraftLauncher:
                 self.console.print("[red]❌ Sürüm bulunamadı![/red]")
                 input("[dim]Enter...[/dim]")
                 return
-            
             # Sürüm JSON'unu indir
             response = requests.get(version_info["url"], timeout=10)
             version_data = response.json()
@@ -480,7 +480,7 @@ class MinecraftLauncher:
                 'Connection': 'keep-alive'
             })
             
-            response = session.get(url, stream=True, timeout=30)
+            response = session.get(url, stream=True, timeout=30, verify=False)
             response.raise_for_status()
             
             total_size = int(response.headers.get('content-length', 0))
@@ -575,6 +575,12 @@ class MinecraftLauncher:
                     self.console.print(f"[yellow]⚠️ Assets indirilemedi, devam ediliyor...[/yellow]")
             except KeyError:
                 self.console.print(f"[yellow]⚠️ Bu sürümde asset index yok (çok eski sürüm)[/yellow]")
+            
+            # Native libraries'ı indir ve çıkar
+            self._download_native_libraries(version_data)
+            
+            # Mevcut tüm native library'leri çıkar (güvenlik için)
+            self._extract_all_native_libraries()
             
             # Kütüphaneleri PARALEL indir (HIZLI!)
             libraries_dir = self.launcher_dir / "libraries"
@@ -737,6 +743,13 @@ class MinecraftLauncher:
             "-Djava.net.preferIPv6Addresses=false",
             "-Dhttp.agent=BerkeMinecraftLauncher/2.3.0",
             
+            # SSL Certificate Trust - Fix authentication issues
+            "-Dcom.sun.net.ssl.checkRevocation=false",
+            "-Dtrust_all_cert=true",
+            "-Djavax.net.ssl.trustStoreType=JKS",
+            "-Djavax.net.ssl.trustStore=",
+            "-Dcom.sun.net.ssl.checkRevocation=false",
+            
             # CPU Optimizasyonları (Java 21+ uyumlu)
             "-XX:+OptimizeStringConcat",
             "-XX:+UseStringDeduplication",
@@ -756,8 +769,9 @@ class MinecraftLauncher:
             "-Dawt.useSystemAAFontSettings=on",
             "-Dswing.aatext=true",
             
-            # LWJGL Native Library Path
-            f"-Dorg.lwjgl.librarypath={self.versions_dir.parent / 'libraries'}",
+            # LWJGL Native Library Path - Fixed for proper library loading
+            f"-Dorg.lwjgl.librarypath={self.launcher_dir / 'libraries' / 'natives' / 'linux' / 'x64'}",
+            "-Djava.library.path=" + str(self.launcher_dir / 'libraries' / 'natives' / 'linux' / 'x64'),
             
             # Minecraft Özel Optimizasyonlar + Online Server Support
             "-Dminecraft.launcher.brand=berke-ultra-launcher",
@@ -844,8 +858,20 @@ class MinecraftLauncher:
         ]
         
         # Asset index (eski sürümlerde olmayabilir)
+        assets_dir = self.minecraft_dir.parent / "assets"
+        assets_dir.mkdir(parents=True, exist_ok=True)
+        
         if "assetIndex" in version_data:
             minecraft_args.extend(["--assetIndex", version_data["assetIndex"]["id"]])
+            # Asset index dosyasını indir ve kaydet
+            try:
+                asset_index_path = assets_dir / "indexes" / f"{version_data['assetIndex']['id']}.json"
+                asset_index_path.parent.mkdir(parents=True, exist_ok=True)
+                if not asset_index_path.exists():
+                    self._download_file(version_data["assetIndex"]["url"], asset_index_path, f"Asset Index {version_data['assetIndex']['id']}")
+            except Exception as e:
+                if self.config.get("debug", False):
+                    self.console.print(f"[yellow]⚠️ Asset index indirilemedi: {e}[/yellow]")
         else:
             # Eski sürümler için fallback
             minecraft_args.extend(["--assetIndex", "legacy"])
@@ -869,6 +895,81 @@ class MinecraftLauncher:
             minecraft_args.extend(["--skin", str(skin_path)])
         
         return jvm_args + minecraft_args, wayland_env
+    
+    def _download_native_libraries(self, version_data: dict):
+        """Native libraries'ı indir ve çıkar"""
+        try:
+            libraries_dir = self.launcher_dir / "libraries"
+            natives_dir = libraries_dir / "natives" / "linux" / "x64"
+            natives_dir.mkdir(parents=True, exist_ok=True)
+            
+            if "libraries" in version_data:
+                for lib in version_data["libraries"]:
+                    # Native library kontrolü
+                    if "natives" in lib:
+                        try:
+                            # Modern format
+                            if "downloads" in lib and "classifiers" in lib["downloads"]:
+                                # Linux native library'yi bul
+                                linux_native = None
+                                for classifier, download_info in lib["downloads"]["classifiers"].items():
+                                    if "natives-linux" in classifier or "natives-linux64" in classifier:
+                                        linux_native = download_info
+                                        break
+                                
+                                if linux_native:
+                                    lib_path = libraries_dir / linux_native["path"]
+                                    lib_path.parent.mkdir(parents=True, exist_ok=True)
+                                    
+                                    # Library'yi indir
+                                    if not lib_path.exists():
+                                        if self._download_file(linux_native["url"], lib_path, f"Native Library {lib.get('name', 'unknown')}"):
+                                            self.console.print(f"[blue]📦 Native library indirildi: {lib_path.name}[/blue]")
+                                    
+                                    # ZIP dosyasını çıkar
+                                    if lib_path.exists() and lib_path.suffix == '.jar':
+                                        import zipfile
+                                        try:
+                                            with zipfile.ZipFile(lib_path, 'r') as zip_ref:
+                                                for file_info in zip_ref.infolist():
+                                                    if file_info.filename.endswith(('.so', '.dll', '.dylib')):
+                                                        zip_ref.extract(file_info, natives_dir)
+                                            self.console.print(f"[green]✅ Native library çıkarıldı: {lib_path.name}[/green]")
+                                        except Exception as e:
+                                            if self.config.get("debug", False):
+                                                self.console.print(f"[yellow]⚠️ Native library çıkarılamadı: {e}[/yellow]")
+                        except Exception as e:
+                            if self.config.get("debug", False):
+                                self.console.print(f"[yellow]⚠️ Native library işlenemedi: {e}[/yellow]")
+                            continue
+        except Exception as e:
+            if self.config.get("debug", False):
+                self.console.print(f"[yellow]⚠️ Native libraries indirilemedi: {e}[/yellow]")
+    
+    def _extract_all_native_libraries(self):
+        """Mevcut tüm native library'leri çıkar"""
+        try:
+            libraries_dir = self.launcher_dir / "libraries"
+            natives_dir = libraries_dir / "natives"
+            natives_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Tüm Linux native JAR dosyalarını bul ve çıkar
+            import zipfile
+            for native_jar in libraries_dir.rglob("*-natives-linux.jar"):
+                try:
+                    with zipfile.ZipFile(native_jar, 'r') as zip_ref:
+                        for file_info in zip_ref.infolist():
+                            if file_info.filename.endswith(('.so', '.dll', '.dylib')):
+                                zip_ref.extract(file_info, natives_dir)
+                except Exception as e:
+                    if self.config.get("debug", False):
+                        self.console.print(f"[yellow]⚠️ Native library çıkarılamadı {native_jar.name}: {e}[/yellow]")
+                    continue
+            
+            self.console.print("[green]✅ Native libraries extracted successfully![/green]")
+        except Exception as e:
+            if self.config.get("debug", False):
+                self.console.print(f"[yellow]⚠️ Native library extraction failed: {e}[/yellow]")
     
     def _launch_minecraft(self, version_id: str):
         """Minecraft'ı başlat"""
@@ -917,11 +1018,15 @@ class MinecraftLauncher:
             
             # Minecraft için özel environment değişkenleri
             current_env.update({
-                "MESA_GL_VERSION_OVERRIDE": "3.3",
-                "MESA_GLSL_VERSION_OVERRIDE": "330",
+                "MESA_GL_VERSION_OVERRIDE": "4.5",
+                "MESA_GLSL_VERSION_OVERRIDE": "450",
                 "LIBGL_ALWAYS_SOFTWARE": "0",
                 "LIBGL_ALWAYS_INDIRECT": "0",
-                "JAVA_TOOL_OPTIONS": "-Djava.awt.headless=false"
+                "JAVA_TOOL_OPTIONS": "-Djava.awt.headless=false",
+                # Performance optimizations
+                "vblank_mode": "0",  # Disable VSync for better FPS
+                "__GL_THREADED_OPTIMIZATIONS": "1",
+                "MESA_NO_ERROR": "1"
             })
             
             # Debug modu
@@ -3884,7 +3989,7 @@ class MinecraftLauncher:
 [bold cyan]██████╗ [/bold cyan] 
 [bold cyan]██╔══██╗[/bold cyan] [bold green]Tesekkurler![/bold green]
 [bold cyan]██████╔╝[/bold cyan] 
-[bold cyan]██╔══██╗[/bold cyan] [yellow]Iyi oyunlar![/yellow]
+[bold cyan]██╔══██╗[/bold cyan] [yellow]Bay Bay![/yellow]
 [bold cyan]██████╔╝[/bold cyan] 
 [bold cyan]╚═════╝ [/bold cyan] [dim]Berke Minecraft Launcher v2.3[/dim]
                 """
@@ -3933,7 +4038,26 @@ class MinecraftLauncher:
                         self.console.print(f"\n[dim]... ve {len(installed) - 15} surum daha[/dim]")
                     
                     self.console.print()
-                input("[dim]Enter...[/dim]")
+                    self.console.print("[dim]0 = Geri | Numara = Baslat | M = Yonet[/dim]")
+                    
+                    try:
+                        choice_input = Prompt.ask("\n[cyan]>[/cyan]")
+                        
+                        if choice_input == "0":
+                            continue
+                        elif choice_input.upper() == "M":
+                            self._show_version_management_menu()
+                        else:
+                            choice = int(choice_input)
+                            if 1 <= choice <= len(installed):
+                                version_id = installed[choice-1]
+                                self._launch_minecraft(version_id)
+                            else:
+                                self.console.print("[red]❌ Geçersiz seçim![/red]")
+                                input("[dim]Enter...[/dim]")
+                    except ValueError:
+                        self.console.print("[red]❌ Geçersiz giriş![/red]")
+                        input("[dim]Enter...[/dim]")
             elif choice == "4":
                 # Skin Yönetimi
                 self._show_skin_menu()
