@@ -2,11 +2,11 @@
 Version=1.0
 Type=Application
 Name=Berke Minecraft Launcher
-Comment=Advanced Minecraft launcher with mod support and performance monitoring
-Exec=berke-minecraft-launcher
-Icon=berke-minecraft-launcher
+Comment=Ultra fast Minecraft launcher for Arch Linux
+Exec=berkemc
+Icon=berkemc
 Terminal=true
-Categories=Game;Emulator;
-Keywords=minecraft;launcher;gaming;java;
+Categories=Game;
+Keywords=minecraft;launcher;gaming;
 StartupNotify=true
-MimeType=application/x-minecraft-save;
+MimeType=application/x-minecraft-profile;

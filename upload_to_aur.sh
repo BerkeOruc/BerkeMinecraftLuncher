@@ -44,4 +44,7 @@ echo "3. Clone: git clone ssh://aur@aur.archlinux.org/berke-minecraft-launcher.g
 echo "4. Copy files: cp PKGBUILD .SRCINFO berke-minecraft-launcher.desktop setup.py berke-minecraft-launcher/"
 echo "5. Commit: cd berke-minecraft-launcher && git add . && git commit -m 'Initial release' && git push"
 echo ""
+echo "🚀 After adding SSH key, run this command to auto-upload:"
+echo "   ./auto_upload_to_aur.sh"
+echo ""
 echo "✅ Setup complete! Follow the instructions above to upload to AUR."

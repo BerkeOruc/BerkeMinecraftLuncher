@@ -1,15 +1,15 @@
 # Maintainer: Berke Oruç <berke3oruc@gmail.com>
-pkgname=berke-minecraft-launcher
-pkgver=2.3.0
+pkgname=berkemc
+pkgver=2.4.0
 pkgrel=1
 pkgdesc="Advanced Minecraft launcher with mod support, skin management, and performance monitoring"
 arch=('any')
-url="https://github.com/berke0/BerkeMinecraftLuncher"
+url="https://github.com/BerkeOruc/BerkeMinecraftLuncher"
 license=('MIT')
 depends=('python>=3.8' 'java-runtime>=17' 'python-requests' 'python-rich' 'python-colorama' 'python-psutil')
 makedepends=('python-setuptools')
-source=("$pkgname-$pkgver.tar.gz::https://github.com/berke0/BerkeMinecraftLuncher/archive/v$pkgver.tar.gz")
-sha256sums=('SKIP')  # Will be updated when we upload
+source=("berkemc-$pkgver.tar.gz::https://github.com/BerkeOruc/BerkeMinecraftLuncher/archive/v$pkgver.tar.gz")
+sha256sums=('9aa00139a598e51aebd76532c25745c2d6c45a5760970d0766f388280cfa50c9')
 
 package() {
     cd "$srcdir/BerkeMinecraftLuncher-$pkgver"
@@ -25,7 +25,7 @@ package() {
     install -Dm644 berke-minecraft-launcher.desktop "$pkgdir/usr/share/applications/berke-minecraft-launcher.desktop"
     
     # Install icon
-    install -Dm644 bmc_logo.png "$pkgdir/usr/share/pixmaps/berke-minecraft-launcher.png"
+    install -Dm644 bmc_logo.png "$pkgdir/usr/share/pixmaps/berkemc.png"
     
     # Install license
     install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"

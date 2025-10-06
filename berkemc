@@ -1,23 +1,54 @@
 #!/bin/bash
-# Berke Minecraft Launcher - Quick Launch Command
-# v2.3.0
 
-# Launcher dizini
-LAUNCHER_DIR="/home/berke0/BerkeMinecraftLuncher"
+# Berke Minecraft Launcher - Main Entry Point
 
-# Dizin kontrolü
-if [ ! -d "$LAUNCHER_DIR" ]; then
-    echo "❌ Launcher bulunamadi: $LAUNCHER_DIR"
-    exit 1
+# Check if berkemc update command is used
+if [ "$1" = "update" ]; then
+    echo "🔄 Berke Minecraft Launcher güncelleniyor..."
+    
+    # Check if yay is available
+    if command -v yay &> /dev/null; then
+        echo "📦 Yay ile güncelleniyor..."
+        yay -S berkemc --noconfirm
+    elif command -v paru &> /dev/null; then
+        echo "📦 Paru ile güncelleniyor..."
+        paru -S berkemc --noconfirm
+    else
+        echo "❌ Yay veya Paru bulunamadı!"
+        echo "💡 Manuel güncelleme: yay -S berkemc"
+        exit 1
+    fi
+    
+    echo "✅ Güncelleme tamamlandı!"
+    exit 0
 fi
 
-# Dizine git
-cd "$LAUNCHER_DIR" || exit 1
-
-# start.sh varsa onu çalıştır (en güvenli yöntem)
-if [ -f "start.sh" ]; then
-    exec ./start.sh
-else
-    echo "❌ start.sh bulunamadi!"
-    exit 1
+# Check if berkemc version command is used
+if [ "$1" = "version" ]; then
+    python3 -c "from version import get_full_version_string; print(get_full_version_string())"
+    exit 0
 fi
+
+# Check if berkemc help command is used
+if [ "$1" = "help" ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+    echo "🎮 Berke Minecraft Launcher v2.4.0"
+    echo ""
+    echo "Kullanım:"
+    echo "  berkemc                 - Launcher'ı başlat"
+    echo "  berkemc update          - Son sürüme güncelle"
+    echo "  berkemc version         - Sürüm bilgisi göster"
+    echo "  berkemc help            - Bu yardım menüsünü göster"
+    echo ""
+    echo "Özellikler:"
+    echo "  🚀 Ultra hızlı Minecraft launcher'ı"
+    echo "  ☕ Otomatik Java yönetimi"
+    echo "  📥 Gelişmiş sürüm indirme sistemi"
+    echo "  🎨 Skin yönetimi"
+    echo "  🔧 Mod desteği"
+    echo "  🖥️ Wayland/Hyprland uyumlu"
+    exit 0
+fi
+
+# Default: Start the launcher
+cd "$(dirname "$0")"
+python3 berke_minecraft_launcher.py "$@"
