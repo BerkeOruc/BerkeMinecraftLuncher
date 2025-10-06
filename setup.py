@@ -4,25 +4,34 @@ Berke Minecraft Launcher - Setup Script
 """
 
 from setuptools import setup, find_packages
-from version import get_version_info
+import os
 
-# Get version information
-version_info = get_version_info()
+# Read version from version.py
+with open("version.py", "r") as f:
+    exec(f.read())
+
+# Read README
+with open("README.md", "r", encoding="utf-8") as f:
+    long_description = f.read()
+
+# Read requirements
+with open("requirements.txt", "r") as f:
+    requirements = [line.strip() for line in f if line.strip() and not line.startswith("#")]
 
 setup(
     name="berke-minecraft-launcher",
-    version=version_info["version"],
-    author=version_info["author"],
-    author_email="berke3oruc@gmail.com",
+    version=__version__,
+    author=__author__,
+    author_email=__email__,
     description="Advanced Minecraft launcher with mod support, skin management, and performance monitoring",
-    long_description=open("README.md").read(),
+    long_description=long_description,
     long_description_content_type="text/markdown",
-    url=version_info["url"],
-    license=version_info["license"],
+    url=__url__,
+    license=__license__,
     packages=find_packages(),
     py_modules=["berke_minecraft_launcher", "i18n", "version"],
     classifiers=[
-        "Development Status :: 4 - Beta",
+        "Development Status :: 5 - Production/Stable",
         "Intended Audience :: End Users/Desktop",
         "License :: OSI Approved :: MIT License",
         "Operating System :: POSIX :: Linux",
@@ -32,16 +41,12 @@ setup(
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
         "Topic :: Games/Entertainment",
         "Topic :: System :: Systems Administration",
     ],
     python_requires=">=3.8",
-    install_requires=[
-        "requests>=2.32.0",
-        "rich>=14.1.0",
-        "colorama>=0.4.6",
-        "psutil>=7.1.0",
-    ],
+    install_requires=requirements,
     entry_points={
         "console_scripts": [
             "berke-minecraft-launcher=berke_minecraft_launcher:main",
@@ -49,8 +54,5 @@ setup(
         ],
     },
     include_package_data=True,
-    package_data={
-        "": ["*.png", "*.txt", "*.md", "*.sh"],
-    },
     zip_safe=False,
 )
