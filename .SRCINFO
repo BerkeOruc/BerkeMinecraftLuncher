@@ -1,6 +1,6 @@
 pkgbase = berkemc
 	pkgdesc = Advanced Minecraft launcher with mod support, skin management, and performance monitoring
-	pkgver = 2.3.0
+	pkgver = 2.4.0
 	pkgrel = 1
 	url = https://github.com/BerkeOruc/BerkeMinecraftLuncher
 	arch = any
@@ -12,7 +12,7 @@ pkgbase = berkemc
 	depends = python-rich
 	depends = python-colorama
 	depends = python-psutil
-	source = berkemc-2.3.0.tar.gz::https://github.com/BerkeOruc/BerkeMinecraftLuncher/archive/v2.3.0.tar.gz
-	sha256sums = 9aa00139a598e51aebd76532c25745c2d6c45a5760970d0766f388280cfa50c9
+	source = berkemc-2.4.0.tar.gz::https://github.com/BerkeOruc/BerkeMinecraftLuncher/archive/v2.4.0.tar.gz
+	sha256sums = 4ea5dd7cc3fbfcc214d1b960b951c50a302566e209dadd51d5e91c853e013995
 
 pkgname = berkemc
