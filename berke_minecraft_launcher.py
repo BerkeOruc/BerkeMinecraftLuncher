@@ -1171,6 +1171,10 @@ class MinecraftLauncher:
             # Mevcut tüm native library'leri çıkar (güvenlik için)
             self._extract_all_native_libraries()
             
+            # Assets'leri indir
+            self.console.print(f"[blue]🎨 Assets indiriliyor...[/blue]")
+            self._download_assets(version_data)
+            
             # Kütüphaneleri PARALEL indir (HIZLI!)
             libraries_dir = self.launcher_dir / "libraries"
             libraries_dir.mkdir(exist_ok=True)
@@ -1587,11 +1591,11 @@ class MinecraftLauncher:
             "--username", self.config["username"],
             "--version", version_id,
             "--gameDir", str(self.minecraft_dir),
-            "--assetsDir", str(self.minecraft_dir.parent / "assets"),
+            "--assetsDir", str(self.minecraft_dir / "assets"),
         ]
         
         # Asset index (eski sürümlerde olmayabilir)
-        assets_dir = self.minecraft_dir.parent / "assets"
+        assets_dir = self.minecraft_dir / "assets"
         assets_dir.mkdir(parents=True, exist_ok=True)
         
         if "assetIndex" in version_data:
@@ -1704,6 +1708,415 @@ class MinecraftLauncher:
             if self.config.get("debug", False):
                 self.console.print(f"[yellow]⚠️ Native library extraction failed: {e}[/yellow]")
     
+    def _download_assets(self, version_data: dict) -> bool:
+        """Asset dosyalarını indir"""
+        try:
+            if "assetIndex" not in version_data:
+                self.console.print("[yellow]⚠️ Bu sürümde asset index yok[/yellow]")
+                return True
+            
+            asset_index_id = version_data["assetIndex"]["id"]
+            asset_index_url = version_data["assetIndex"]["url"]
+            
+            # Asset dizinlerini oluştur
+            assets_dir = self.minecraft_dir / "assets"
+            assets_objects_dir = assets_dir / "objects"
+            assets_indexes_dir = assets_dir / "indexes"
+            
+            assets_dir.mkdir(parents=True, exist_ok=True)
+            assets_objects_dir.mkdir(parents=True, exist_ok=True)
+            assets_indexes_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Asset index dosyasını indir
+            asset_index_path = assets_indexes_dir / f"{asset_index_id}.json"
+            
+            if not asset_index_path.exists():
+                self.console.print(f"[blue]📄 Asset index indiriliyor: {asset_index_id}[/blue]")
+                if not self._download_file(asset_index_url, asset_index_path, f"Asset Index {asset_index_id}"):
+                    self.console.print("[red]❌ Asset index indirilemedi![/red]")
+                    return False
+            
+            # Asset index'i oku
+            with open(asset_index_path, 'r') as f:
+                asset_index = json.load(f)
+            
+            if "objects" not in asset_index:
+                self.console.print("[yellow]⚠️ Asset index'te nesne bulunamadı[/yellow]")
+                return True
+            
+            # İndirilecek asset'leri topla
+            assets_to_download = []
+            for asset_name, asset_info in asset_index["objects"].items():
+                asset_hash = asset_info["hash"]
+                asset_hash_prefix = asset_hash[:2]
+                asset_path = assets_objects_dir / asset_hash_prefix / asset_hash
+                
+                # Sadece eksik olanları indir
+                if not asset_path.exists():
+                    asset_url = f"{self.assets_url}/{asset_hash_prefix}/{asset_hash}"
+                    assets_to_download.append((asset_url, asset_path, asset_name, asset_hash))
+            
+            if not assets_to_download:
+                self.console.print("[green]✅ Tüm asset'ler cache'de mevcut![/green]")
+                return True
+            
+            # Assets'leri paralel indir (ultra hızlı!)
+            self.console.print(f"[blue]📦 {len(assets_to_download)} asset indiriliyor (paralel)...[/blue]")
+            
+            start_time = time.time()
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+                DownloadColumn(),
+                TransferSpeedColumn(),
+                TimeElapsedColumn(),
+                console=self.console
+            ) as progress:
+                task = progress.add_task("[cyan]Assets", total=len(assets_to_download))
+                
+                def download_asset(url, path, name, hash_val):
+                    try:
+                        path.parent.mkdir(parents=True, exist_ok=True)
+                        response = requests.get(url, timeout=30)
+                        response.raise_for_status()
+                        with open(path, 'wb') as f:
+                            f.write(response.content)
+                        return True, name
+                    except Exception as e:
+                        return False, name
+                
+                # 16 paralel thread ile indir
+                with ThreadPoolExecutor(max_workers=16) as executor:
+                    futures = {executor.submit(download_asset, url, path, name, hash_val): name 
+                             for url, path, name, hash_val in assets_to_download}
+                    
+                    failed_count = 0
+                    for future in as_completed(futures):
+                        success, name = future.result()
+                        if not success:
+                            failed_count += 1
+                            if self.config.get("debug", False):
+                                self.console.print(f"[yellow]⚠️ Asset atlandı: {name}[/yellow]")
+                        progress.update(task, advance=1)
+            
+            elapsed = time.time() - start_time
+            speed = len(assets_to_download) / elapsed if elapsed > 0 else 0
+            
+            if failed_count > 0:
+                self.console.print(f"[yellow]⚠️ {failed_count} asset indirilemedi, devam ediliyor...[/yellow]")
+            
+            self.console.print(f"[green]✅ {len(assets_to_download) - failed_count} asset indirildi ({elapsed:.1f}s, {speed:.1f} dosya/s)[/green]")
+            return True
+            
+        except Exception as e:
+            self.console.print(f"[red]❌ Asset indirme hatası: {e}[/red]")
+            if self.config.get("debug", False):
+                import traceback
+                self.console.print(f"[dim]Detay: {traceback.format_exc()}[/dim]")
+            return False
+    
+    def _verify_and_repair_assets(self, version_id: str) -> bool:
+        """Asset'leri doğrula ve eksik olanları indir"""
+        try:
+            self.console.print(f"[blue]🔍 Asset'ler doğrulanıyor: {version_id}[/blue]")
+            
+            # Version data'yı al
+            version_dir = self.versions_dir / version_id
+            version_json_path = version_dir / f"{version_id}.json"
+            
+            if not version_json_path.exists():
+                self.console.print(f"[red]❌ Sürüm dosyası bulunamadı: {version_id}[/red]")
+                return False
+            
+            with open(version_json_path, 'r') as f:
+                version_data = json.load(f)
+            
+            if "assetIndex" not in version_data:
+                self.console.print("[yellow]⚠️ Bu sürümde asset index yok[/yellow]")
+                return True
+            
+            asset_index_id = version_data["assetIndex"]["id"]
+            assets_dir = self.minecraft_dir / "assets"
+            assets_indexes_dir = assets_dir / "indexes"
+            assets_objects_dir = assets_dir / "objects"
+            
+            # Asset index dosyasını kontrol et
+            asset_index_path = assets_indexes_dir / f"{asset_index_id}.json"
+            
+            if not asset_index_path.exists():
+                self.console.print(f"[yellow]⚠️ Asset index bulunamadı, indiriliyor...[/yellow]")
+                return self._download_assets(version_data)
+            
+            # Asset index'i oku
+            with open(asset_index_path, 'r') as f:
+                asset_index = json.load(f)
+            
+            if "objects" not in asset_index:
+                self.console.print("[yellow]⚠️ Asset index'te nesne bulunamadı[/yellow]")
+                return True
+            
+            # Eksik asset'leri bul
+            missing_assets = []
+            total_assets = len(asset_index["objects"])
+            
+            for asset_name, asset_info in asset_index["objects"].items():
+                asset_hash = asset_info["hash"]
+                asset_hash_prefix = asset_hash[:2]
+                asset_path = assets_objects_dir / asset_hash_prefix / asset_hash
+                
+                if not asset_path.exists():
+                    missing_assets.append((asset_name, asset_info))
+            
+            if not missing_assets:
+                self.console.print(f"[green]✅ Tüm asset'ler mevcut! ({total_assets} asset)[/green]")
+                return True
+            
+            # Eksik asset'leri göster ve onar
+            self.console.print(f"[yellow]⚠️ {len(missing_assets)}/{total_assets} asset eksik![/yellow]")
+            
+            if Confirm.ask("Eksik asset'leri indirmek istiyor musunuz?", default=True):
+                return self._download_assets(version_data)
+            
+            return False
+            
+        except Exception as e:
+            self.console.print(f"[red]❌ Asset doğrulama hatası: {e}[/red]")
+            if self.config.get("debug", False):
+                import traceback
+                self.console.print(f"[dim]Detay: {traceback.format_exc()}[/dim]")
+            return False
+    
+    def _get_forge_versions(self, minecraft_version: str) -> List[str]:
+        """Belirli bir Minecraft sürümü için Forge sürümlerini al"""
+        try:
+            url = f"https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json"
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            forge_versions = []
+            for key, value in data.get("promos", {}).items():
+                if key.startswith(minecraft_version):
+                    forge_versions.append(f"{minecraft_version}-{value}")
+            
+            return forge_versions
+        except Exception as e:
+            if self.config.get("debug", False):
+                self.console.print(f"[yellow]⚠️ Forge sürümleri alınamadı: {e}[/yellow]")
+            return []
+    
+    def _get_fabric_versions(self, minecraft_version: str) -> List[str]:
+        """Belirli bir Minecraft sürümü için Fabric sürümlerini al"""
+        try:
+            url = f"https://meta.fabricmc.net/v2/versions/loader/{minecraft_version}"
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            fabric_versions = []
+            for loader in data[:5]:  # İlk 5 sürüm
+                loader_version = loader["loader"]["version"]
+                fabric_versions.append(f"{minecraft_version}-fabric-{loader_version}")
+            
+            return fabric_versions
+        except Exception as e:
+            if self.config.get("debug", False):
+                self.console.print(f"[yellow]⚠️ Fabric sürümleri alınamadı: {e}[/yellow]")
+            return []
+    
+    def _download_forge(self, minecraft_version: str, forge_version: str) -> bool:
+        """Forge'u indir ve kur - Progress bar ile"""
+        try:
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+                console=self.console
+            ) as progress:
+                task = progress.add_task(f"[cyan]⚒️  Forge {forge_version} kuruluyor...", total=100)
+                
+                # Forge installer URL'si
+                forge_full_version = f"{minecraft_version}-{forge_version}"
+                installer_url = f"https://maven.minecraftforge.net/net/minecraftforge/forge/{forge_full_version}/forge-{forge_full_version}-installer.jar"
+                
+                progress.update(task, description=f"[cyan]📥 Forge installer indiriliyor...", advance=20)
+                
+                # Installer'ı indir
+                installer_path = self.cache_dir / f"forge-{forge_full_version}-installer.jar"
+                
+                if not self._download_file(installer_url, installer_path, f"Forge {forge_version} Installer"):
+                    self.console.print("[red]❌ Forge installer indirilemedi![/red]")
+                    input("[dim]Enter ile devam...[/dim]")
+                    return False
+                
+                progress.update(task, description=f"[cyan]⚙️  Forge kuruluyor (1-2 dakika)...", advance=20)
+                
+                # launcher_profiles.json oluştur
+                launcher_profiles_path = self.minecraft_dir / "launcher_profiles.json"
+                if not launcher_profiles_path.exists():
+                    default_profiles = {
+                        "profiles": {
+                            "default": {
+                                "name": "Default",
+                                "type": "latest-release",
+                                "lastVersionId": "latest-release"
+                            }
+                        },
+                        "selectedProfile": "default",
+                        "clientToken": str(uuid.uuid4()),
+                        "authenticationDatabase": {},
+                        "launcherVersion": {"name": "BerkeMinecraftLauncher", "format": 21}
+                    }
+                    with open(launcher_profiles_path, 'w') as f:
+                        json.dump(default_profiles, f, indent=2)
+                
+                # Forge installer'ı çalıştır
+                install_cmd = [
+                    self.java_executable,
+                    "-Djava.awt.headless=true",
+                    "-jar", str(installer_path),
+                    "--installClient", str(self.minecraft_dir)
+                ]
+                
+                result = subprocess.run(install_cmd, capture_output=True, text=True, timeout=300)
+                
+                progress.update(task, description=f"[cyan]📦 Forge dosyaları kopyalanıyor...", advance=30)
+                
+                if result.returncode == 0 or "Successfully installed" in result.stdout:
+                    # Forge profili oluştur
+                    forge_dir = self.minecraft_dir / "versions" / forge_full_version
+                    version_dir = self.versions_dir / forge_full_version
+                    version_dir.mkdir(parents=True, exist_ok=True)
+                    
+                    # Forge sürüm dosyalarını kopyala
+                    forge_version_json = forge_dir / f"{forge_full_version}.json"
+                    if forge_version_json.exists():
+                        shutil.copy(forge_version_json, version_dir / f"{forge_full_version}.json")
+                    
+                    forge_jar = forge_dir / f"{forge_full_version}.jar"
+                    if forge_jar.exists():
+                        shutil.copy(forge_jar, version_dir / f"{forge_full_version}.jar")
+                    
+                    # Installer'ı temizle
+                    installer_path.unlink(missing_ok=True)
+                    
+                    progress.update(task, description=f"[green]✅ Forge kuruldu: {forge_full_version}", advance=30)
+                    
+                    self.console.print(f"[green]✅ Forge başarıyla kuruldu![/green]")
+                    self.console.print(f"[cyan]📂 Sürüm ID: {forge_full_version}[/cyan]")
+                    input("[dim]Enter ile devam...[/dim]")
+                    return True
+                else:
+                    self.console.print(f"[red]❌ Forge kurulumu başarısız![/red]")
+                    if result.stderr:
+                        self.console.print(f"[yellow]Hata:[/yellow]\n[dim]{result.stderr[:300]}[/dim]")
+                    input("[dim]Enter ile devam...[/dim]")
+                    return False
+                    
+        except subprocess.TimeoutExpired:
+            self.console.print(f"[red]❌ Forge kurulumu zaman aşımına uğradı (5 dakika)[/red]")
+            input("[dim]Enter ile devam...[/dim]")
+            return False
+        except Exception as e:
+            self.console.print(f"[red]❌ Forge kurulum hatası: {e}[/red]")
+            if self.config.get("debug", False):
+                import traceback
+                self.console.print(f"[dim]Detay: {traceback.format_exc()}[/dim]")
+            input("[dim]Enter ile devam...[/dim]")
+            return False
+    
+    def _download_fabric(self, minecraft_version: str, fabric_loader_version: str) -> bool:
+        """Fabric'i indir ve kur - Progress bar ile"""
+        try:
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+                console=self.console
+            ) as progress:
+                task = progress.add_task(f"[cyan]🧵 Fabric {fabric_loader_version} kuruluyor...", total=100)
+                
+                # Fabric loader bilgilerini al
+                progress.update(task, description=f"[cyan]📡 Fabric loader bilgileri alınıyor...", advance=10)
+                loader_url = f"https://meta.fabricmc.net/v2/versions/loader/{minecraft_version}/{fabric_loader_version}"
+                response = requests.get(loader_url, timeout=10)
+                response.raise_for_status()
+                loader_data = response.json()
+                
+                # Fabric version ID
+                fabric_version_id = f"fabric-loader-{fabric_loader_version}-{minecraft_version}"
+                fabric_dir = self.versions_dir / fabric_version_id
+                fabric_dir.mkdir(parents=True, exist_ok=True)
+                
+                progress.update(task, description=f"[cyan]📄 Fabric profile indiriliyor...", advance=20)
+                
+                # Fabric profile JSON'unu indir
+                profile_url = f"https://meta.fabricmc.net/v2/versions/loader/{minecraft_version}/{fabric_loader_version}/profile/json"
+                profile_path = fabric_dir / f"{fabric_version_id}.json"
+                
+                if not self._download_file(profile_url, profile_path, f"Fabric {fabric_loader_version} Profile"):
+                    self.console.print("[red]❌ Fabric profile indirilemedi![/red]")
+                    return False
+                
+                progress.update(task, description=f"[cyan]📦 Fabric libraries indiriliyor...", advance=20)
+                
+                # Profile'dan kütüphaneleri indir
+                with open(profile_path, 'r') as f:
+                    profile_data = json.load(f)
+                
+                if "libraries" in profile_data:
+                    libraries_dir = self.launcher_dir / "libraries"
+                    for lib in profile_data["libraries"]:
+                        if "downloads" in lib and "artifact" in lib["downloads"]:
+                            artifact = lib["downloads"]["artifact"]
+                            lib_url = artifact["url"]
+                            lib_path = libraries_dir / artifact["path"]
+                            lib_path.parent.mkdir(parents=True, exist_ok=True)
+                            
+                            if not lib_path.exists():
+                                try:
+                                    lib_response = requests.get(lib_url, timeout=30)
+                                    lib_response.raise_for_status()
+                                    with open(lib_path, 'wb') as f:
+                                        f.write(lib_response.content)
+                                except Exception as e:
+                                    if self.config.get("debug", False):
+                                        self.console.print(f"[yellow]⚠️ Library atlandı: {lib.get('name')}[/yellow]")
+                
+                progress.update(task, description=f"[cyan]🎮 Minecraft base version kontrol ediliyor...", advance=20)
+                
+                # Minecraft base version'ı indir
+                if not (self.versions_dir / minecraft_version / f"{minecraft_version}.jar").exists():
+                    if not self._download_version(minecraft_version):
+                        self.console.print("[red]❌ Base Minecraft sürümü indirilemedi![/red]")
+                        return False
+                
+                # Fabric JAR dosyasını kopyala (symlink olarak)
+                base_jar = self.versions_dir / minecraft_version / f"{minecraft_version}.jar"
+                fabric_jar = fabric_dir / f"{fabric_version_id}.jar"
+                
+                if base_jar.exists() and not fabric_jar.exists():
+                    shutil.copy(base_jar, fabric_jar)
+                
+                progress.update(task, description=f"[green]✅ Fabric kuruldu: {fabric_version_id}", advance=30)
+                
+            self.console.print(f"[green]✅ Fabric başarıyla kuruldu![/green]")
+            self.console.print(f"[cyan]📂 Sürüm ID: {fabric_version_id}[/cyan]")
+            input("[dim]Enter ile devam...[/dim]")
+            return True
+            
+        except Exception as e:
+            self.console.print(f"[red]❌ Fabric kurulum hatası: {e}[/red]")
+            if self.config.get("debug", False):
+                import traceback
+                self.console.print(f"[dim]Detay: {traceback.format_exc()}[/dim]")
+            input("[dim]Enter ile devam...[/dim]")
+            return False
+    
     def _launch_minecraft(self, version_id: str):
         """Minecraft'ı başlat"""
         try:
@@ -1745,6 +2158,10 @@ class MinecraftLauncher:
             
             # Önce sistem kontrolü yap
             self._pre_launch_check()
+            
+            # Asset'leri doğrula ve eksikleri indir
+            self.console.print(f"[blue]🔍 Asset'ler kontrol ediliyor...[/blue]")
+            self._verify_and_repair_assets(version_id)
             
             command, env_vars = self._create_launch_command(version_id)
             
@@ -3660,15 +4077,6 @@ class MinecraftLauncher:
             self._install_fabric()
         elif choice == "3":
             self._install_quilt()
-    
-    def _install_forge(self):
-        """Forge kur"""
-        self.console.print("\n[bold]Forge Kurulumu[/bold]")
-        self.console.print("[yellow]⚠️ Forge kurulumu manuel olarak yapılmalıdır[/yellow]")
-        self.console.print("[dim]1. https://files.minecraftforge.net/ adresine gidin[/dim]")
-        self.console.print("[dim]2. İstediğiniz sürümü seçin[/dim]")
-        self.console.print("[dim]3. Installer'ı indirin ve çalıştırın[/dim]")
-        input("[dim]Enter...[/dim]")
     
     def _install_fabric(self, mc_version: str):
         """Fabric otomatik kur - CLIENT"""
