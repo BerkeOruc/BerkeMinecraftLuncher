@@ -3,12 +3,12 @@
 pkgname = berkemc
 pkgbase = berkemc
 xdata = pkgtype=pkg
-pkgver = 2.4.0-1
+pkgver = 2.5.1-1
 pkgdesc = Advanced Minecraft launcher with mod support, skin management, and performance monitoring
 url = https://github.com/BerkeOruc/BerkeMinecraftLuncher
-builddate = 1759766177
+builddate = 1759923499
 packager = Unknown Packager
-size = 1307112
+size = 1346907
 arch = any
 license = MIT
 depend = python>=3.8
@@ -17,5 +17,4 @@ depend = python-requests
 depend = python-rich
 depend = python-colorama
 depend = python-psutil
-depend = xorg-server-xwayland
 makedepend = python-setuptools

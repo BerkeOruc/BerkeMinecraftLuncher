@@ -571,22 +571,50 @@ class MinecraftLauncher:
                 selected_java = java_versions[choice-1]
                 
                 if Confirm.ask(f"[red]'{selected_java}' sürümünü silmek istediğinizden emin misiniz?[/red]"):
-                    # Paket adını tahmin et
-                    package_name = selected_java.replace("java-", "").replace("-openjdk", "-openjdk")
-                    if not package_name.endswith("-openjdk"):
-                        package_name += "-openjdk"
+                    # Paket adını düzgün oluştur
+                    # Örnek: "java-17-openjdk" -> version=17 -> paketler: jre17-openjdk, jdk17-openjdk
+                    import re
+                    version_match = re.search(r'java-(\d+)-', selected_java)
+                    if version_match:
+                        java_version = version_match.group(1)
+                        # Hem JRE hem JDK'yı silmeyi dene
+                        packages_to_try = [
+                            f"jre{java_version}-openjdk",
+                            f"jdk{java_version}-openjdk",
+                            f"jre-openjdk" if java_version == "8" else None,
+                            f"jdk-openjdk" if java_version == "8" else None
+                        ]
+                        packages_to_try = [p for p in packages_to_try if p]
+                    else:
+                        # Fallback
+                        packages_to_try = [selected_java]
                     
                     self.console.print(f"[blue]🗑️ {selected_java} siliniyor...[/blue]")
                     
-                    try:
-                        result = subprocess.run(["sudo", "pacman", "-R", package_name, "--noconfirm"], 
-                                              capture_output=True, text=True)
-                        if result.returncode == 0:
-                            self.console.print(f"[green]✅ {selected_java} başarıyla silindi![/green]")
-                        else:
-                            self.console.print(f"[red]❌ {selected_java} silme işlemi başarısız![/red]")
-                    except:
+                    success = False
+                    for package_name in packages_to_try:
+                        try:
+                            # Önce paketin yüklü olup olmadığını kontrol et
+                            check = subprocess.run(["pacman", "-Q", package_name], 
+                                                 capture_output=True, text=True)
+                            if check.returncode == 0:
+                                # Paket yüklü, sil
+                                result = subprocess.run(["sudo", "pacman", "-R", package_name, "--noconfirm"], 
+                                                      capture_output=True, text=True)
+                                if result.returncode == 0:
+                                    self.console.print(f"[green]✅ {package_name} başarıyla silindi![/green]")
+                                    success = True
+                                else:
+                                    self.console.print(f"[yellow]⚠️ {package_name} silinemedi:[/yellow]")
+                                    if result.stderr:
+                                        self.console.print(f"[dim]{result.stderr[:200]}[/dim]")
+                        except Exception as e:
+                            continue
+                    
+                    if not success:
                         self.console.print(f"[red]❌ {selected_java} silme işlemi başarısız![/red]")
+                        self.console.print("[yellow]💡 Manuel silmek için:[/yellow]")
+                        self.console.print(f"[dim]sudo pacman -R jre{java_version}-openjdk jdk{java_version}-openjdk[/dim]")
                 else:
                     self.console.print("[yellow]İşlem iptal edildi.[/yellow]")
             else:

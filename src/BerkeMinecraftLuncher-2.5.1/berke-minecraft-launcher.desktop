@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Berke Minecraft Launcher
+Comment=Ultra fast Minecraft launcher for Arch Linux
+Exec=berkemc
+Icon=berkemc
+Terminal=true
+Categories=Game;
+Keywords=minecraft;launcher;gaming;
+StartupNotify=true
+MimeType=application/x-minecraft-profile;

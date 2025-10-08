@@ -1,0 +1,3 @@
+berke_minecraft_launcher
+i18n
+version

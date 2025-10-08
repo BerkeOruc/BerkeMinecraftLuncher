@@ -1,0 +1,23 @@
+#!/bin/bash
+# Berke Minecraft Launcher - Quick Launch Command
+# v2.3.0
+
+# Launcher dizini
+LAUNCHER_DIR="/home/berke0/BerkeMinecraftLuncher"
+
+# Dizin kontrolü
+if [ ! -d "$LAUNCHER_DIR" ]; then
+    echo "❌ Launcher bulunamadi: $LAUNCHER_DIR"
+    exit 1
+fi
+
+# Dizine git
+cd "$LAUNCHER_DIR" || exit 1
+
+# start.sh varsa onu çalıştır (en güvenli yöntem)
+if [ -f "start.sh" ]; then
+    exec ./start.sh
+else
+    echo "❌ start.sh bulunamadi!"
+    exit 1
+fi
