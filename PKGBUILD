@@ -9,7 +9,7 @@ license=('MIT')
 depends=('python>=3.8' 'java-runtime>=17' 'python-requests' 'python-rich' 'python-colorama' 'python-psutil')
 makedepends=('python-setuptools')
 source=("berkemc-$pkgver.tar.gz::https://github.com/BerkeOruc/BerkeMinecraftLuncher/archive/v$pkgver.tar.gz")
-sha256sums=('4ea5dd7cc3fbfcc214d1b960b951c50a302566e209dadd51d5e91c853e013995')
+sha256sums=('0a55b91efe7a792e405dc1a7f5592c228d6480375a7d2f5eed854268f87ba5f3')
 
 package() {
     cd "$srcdir/BerkeMinecraftLuncher-$pkgver"
