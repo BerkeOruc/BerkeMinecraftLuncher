@@ -1,0 +1,6 @@
+# SSH config for AUR upload
+Host aur.archlinux.org
+    User aur
+    IdentityFile /home/berke0/BerkeMinecraftLuncher/aur_key
+    StrictHostKeyChecking no
+    UserKnownHostsFile /dev/null

@@ -1,0 +1,13 @@
+LICENSE
+README.md
+berke_minecraft_launcher.py
+i18n.py
+setup.py
+version.py
+berke_minecraft_launcher.egg-info/PKG-INFO
+berke_minecraft_launcher.egg-info/SOURCES.txt
+berke_minecraft_launcher.egg-info/dependency_links.txt
+berke_minecraft_launcher.egg-info/entry_points.txt
+berke_minecraft_launcher.egg-info/not-zip-safe
+berke_minecraft_launcher.egg-info/requires.txt
+berke_minecraft_launcher.egg-info/top_level.txt

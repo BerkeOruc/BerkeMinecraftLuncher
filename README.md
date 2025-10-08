@@ -1,86 +1,271 @@
-# 🚀 BerkeMC - Ultra Fast Minecraft Launcher
+# 🎮 Berke Minecraft Launcher
 
-> **Terminal tabanlı, ultra hızlı Minecraft launcher - Arch Linux için optimize edilmiş**
+**Terminal tabanlı, ultra-hızlı Minecraft launcher - Arch Linux + Hyprland için optimize edilmiş**
+
+[![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)](https://github.com/berke0/BerkeMinecraftLuncher)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Arch Linux](https://img.shields.io/badge/platform-Arch%20Linux-1793D1.svg)](https://archlinux.org/)
+[![Hyprland](https://img.shields.io/badge/WM-Hyprland-00D9FF.svg)](https://hyprland.org/)
 
 ## ✨ Özellikler
 
-### 🎮 Minecraft Desteği
-- ✅ **Tüm sürümler**: Alpha, Beta, Release, Snapshot (a1.0 → latest)
-- ✅ **Online sunucu desteği**: UUID + Mojang protocol
-- ✅ **Eski sürüm uyumluluğu**: Alpha/Beta tam destek
+### 🚀 Performans
+- ✅ **Ultra hızlı başlatma** - Optimize edilmiş JVM argümanları
+- ✅ **Paralel indirme** - 16 thread ile ultra hızlı (kütüphaneler + assets)
+- ✅ **Akıllı cache** - Gereksiz indirmeler yok
+- ✅ **Hyprland optimizasyonu** - XWayland otomatik ayarlanır
 
-### ⚡ Performans
-- ✅ **Ultra hızlı indirme**: 16 paralel thread + 1MB chunks
-- ✅ **Akıllı cache**: 1 saat TTL + offline mode
-- ✅ **JVM optimizasyonları**: Aikar's Flags Enhanced
-- ✅ **Performans profilleri**: Ultra, Yüksek, Orta, Düşük
-- ✅ **Performans testi**: CPU/RAM/Disk skoru + FPS tahmini
+### ☕ Java Yönetimi
+- ✅ **Otomatik Java tespit** - Sistem Java'ları otomatik bulunur
+- ✅ **Çoklu sürüm desteği** - Java 8, 17, 21, 25
+- ✅ **Akıllı sürüm seçimi** - Minecraft sürümüne göre otomatik
+- ✅ **Kolay kurulum** - Java eksikse otomatik kurulum önerisi
+
+### 🎮 Minecraft
+- ✅ **Tüm sürümler** - Release, Snapshot, Beta, Alpha
+- ✅ **Mod loader desteği** - Forge, Fabric (otomatik kurulum rehberi)
+- ✅ **Gelişmiş sürüm yönetimi** - İndirme, silme, yedekleme
+- ✅ **Kaynak izleme** - Canlı CPU/RAM/GPU izleme
 
 ### 🎨 Özelleştirme
-- ✅ **Skin yönetimi**: Upload, download, backup
-- ✅ **Mod yönetimi**: Modrinth API entegrasyonu
-- ✅ **Tema**: Minimal TUI (rich library)
+- ✅ **Skin yönetimi** - URL'den indirme, galeri desteği
+- ✅ **Mod arama** - Modrinth API entegrasyonu
+- ✅ **Profil sistemi** - Farklı ayarlar için profiller
+- ✅ **Tema desteği** - Renkli terminal UI
 
 ### 🖥️ Sistem
-- ✅ **Wayland/Hyprland**: XWayland desteği
-- ✅ **Sistem entegrasyonu**: `berkemc` komutu
-- ✅ **Desktop entry**: Uygulama menüsü
+- ✅ **Hyprland/Wayland** - XWayland otomatik
+- ✅ **Multi-display** - Çoklu ekran desteği
+- ✅ **Desktop entegrasyon** - Uygulama menüsüne ekleme
+- ✅ **Otomatik güncelleme** - AUR paketi güncellemeleri
 
 ## 📦 Kurulum
 
-### Otomatik Kurulum (Önerilen)
+### Arch Linux (AUR) - Önerilen
 ```bash
-# GitHub'dan indir
-git clone https://github.com/berke0/BerkeMinecraftLuncher.git
-cd BerkeMinecraftLuncher
-
-# Kurulum scriptini çalıştır
-chmod +x install.sh
-./install.sh
+yay -S berkemc
 ```
 
 ### Manuel Kurulum
 ```bash
-# Bağımlılıkları kur
+git clone https://github.com/berke0/BerkeMinecraftLuncher.git
+cd BerkeMinecraftLuncher
 pip install -r requirements.txt
-
-# Launcher'ı başlat
-./start.sh
+python berke_minecraft_launcher.py
 ```
 
-## 🎯 Kullanım
+## 🚀 Kullanım
 
+### İlk Başlatma
 ```bash
-# Launcher başlat
 berkemc
-
-# Veya
-./start.sh
 ```
 
-## 📊 Performans
+İlk çalıştırmada **kurulum sihirbazı** otomatik açılır:
+1. Java kontrolü ve kurulumu
+2. Kullanıcı adı ayarı
+3. RAM konfigürasyonu
+4. Desktop entry oluşturma
+5. İlk Minecraft sürümü indirme
 
-- **İndirme hızı**: 20+ MB/s (16 thread)
-- **Menü açılış**: 0.2 saniye (cache)
-- **FPS**: 300-500+ (Ultra profil)
-- **RAM kullanımı**: 2-16GB (ayarlanabilir)
+### Ana Menü
+```
+╭─────────── ANA MENU ────────────╮
+│  1  🎮 Minecraft Başlat        │
+│  2  📥 Sürüm İndir             │
+│  3  📦 Sürümlerim              │
+│  4  🎨 Skin Yönetimi           │
+│  5  🔧 Mod Yönetimi            │
+│  6  ⚙️  Ayarlar                 │
+│  7  📊 Performans              │
+│  8  ℹ️  Hakkında                │
+│  0  👋 Çıkış                   │
+╰─────────────────────────────────╯
+```
 
-## 🔧 Gereksinimler
+### Komut Satırı
+```bash
+berkemc                 # Launcher'ı başlat
+berkemc --version       # Sürüm bilgisi
+berkemc --help          # Yardım
+berkemc --uninstall     # Launcher'ı kaldır
+```
 
-- Python 3.10+
-- Java 21+ (otomatik kurulur)
-- Arch Linux (veya türevleri)
+## 🔧 Özellik Detayları
 
-## 📝 Lisans
+### Minecraft Başlatma
+- Sürüm seçimi
+- Otomatik Java kontrolü
+- Progress bar ile yükleme
+- Kaynak izleme ('m' tuşu)
 
-MIT License
+### Sürüm İndirme
+- Gelişmiş arama
+- Filtrele (Release/Snapshot/Beta/Alpha)
+- Paralel indirme (ultra hızlı!)
+- Otomatik assets indirme
+
+### Mod Yönetimi
+- Modrinth API ile arama
+- Popüler modlar
+- Forge/Fabric kurulum rehberi
+- Mod klasörü yönetimi
+
+### Skin Yönetimi
+- URL'den indirme
+- Minecraft kullanıcı adından çekme
+- Skin galerisi
+- Yedekleme/geri yükleme
+
+### Java Yönetimi
+- Kurulu Java sürümleri listesi
+- Yeni Java kurulumu
+- Sürüm değiştirme
+- Test etme
+
+### Performans İzleme
+- CPU kullanımı
+- RAM kullanımı
+- GPU kullanımı (AMD/NVIDIA)
+- FPS tahmini
+- Process izleme
+
+## 🖥️  Arch Linux + Hyprland Desteği
+
+### Otomatik Optimizasyonlar
+- XWayland otomatik kullanılır
+- Window management ayarları
+- Graphics acceleration
+- DRI3 optimizasyonu
+
+### Hyprland Config Önerisi
+```conf
+# ~/.config/hypr/hyprland.conf
+
+# Minecraft pencere kuralları
+windowrulev2 = float,class:(Minecraft)
+windowrulev2 = center,class:(Minecraft)
+windowrulev2 = size 1280 720,class:(Minecraft)
+
+# Java uygulamaları
+windowrulev2 = float,class:(java)
+windowrulev2 = center,class:(java)
+
+# XWayland
+env = GDK_BACKEND,x11
+env = QT_QPA_PLATFORM,xcb
+env = SDL_VIDEODRIVER,x11
+env = _JAVA_AWT_WM_NONREPARENTING,1
+```
+
+## 📊 Sistem Gereksinimleri
+
+### Minimum
+- **OS:** Arch Linux
+- **Java:** 17+
+- **Python:** 3.8+
+- **RAM:** 4 GB
+- **Disk:** 2 GB (Minecraft için 10+ GB)
+
+### Önerilen
+- **OS:** Arch Linux + Hyprland
+- **Java:** 21
+- **Python:** 3.11+
+- **RAM:** 8+ GB
+- **Disk:** 20+ GB
+
+## 🐛 Sorun Giderme
+
+### Minecraft Başlamıyor
+```bash
+# Log kontrol
+tail -f ~/.berke_minecraft_launcher/logs/minecraft_*.log
+
+# Java değiştir
+berkemc
+# Java Yönetimi → Java Sürümü Seç
+
+# Assets temizle
+rm -rf ~/.minecraft/assets
+# Sonra sürümü yeniden indir
+```
+
+### Java Hatası
+```bash
+# Java 21 kur
+sudo pacman -S jdk21-openjdk
+
+# Launcher'da Java'yı seç
+berkemc
+# Java Yönetimi → Java Sürümü Seç → Java 21
+```
+
+### Hyprland Pencere Sorunu
+```bash
+# Hyprland config'e ekle
+echo "windowrulev2 = float,class:(Minecraft)" >> ~/.config/hypr/hyprland.conf
+echo "windowrulev2 = center,class:(Minecraft)" >> ~/.config/hypr/hyprland.conf
+
+# Hyprland'i yeniden yükle
+hyprctl reload
+```
+
+## 📝 Geliştirme
+
+### Git Clone
+```bash
+git clone https://github.com/berke0/BerkeMinecraftLuncher.git
+cd BerkeMinecraftLuncher
+```
+
+### Bağımlılıklar
+```bash
+pip install -r requirements.txt
+```
+
+### Çalıştır
+```bash
+python berke_minecraft_launcher.py
+```
+
+### Yayınlama
+```bash
+./publish.sh
+```
+
+## 🗑️ Kaldırma
+
+### Launcher Verilerini Sil
+```bash
+berkemc --uninstall
+```
+
+### Paketi Kaldır
+```bash
+yay -R berkemc
+```
+
+## 📄 Lisans
+
+MIT License - Copyright (c) 2025 Berke Oruç
+
+## 👤 Geliştirici
+
+**Berke Oruç** (2009)
+- GitHub: [@berke0](https://github.com/berke0)
+- Email: berke3oruc@gmail.com
 
 ## 🙏 Teşekkürler
 
-- Aikar's Flags
-- Modrinth API
-- Rich library
+- Mojang - Minecraft
+- LWJGL - Graphics library
+- Rich - Terminal UI
+- Arch Linux Community
 
 ---
 
-**İyi oyunlar! 🎮⚡**
+**⭐ Star'lamayı unutmayın!** ✨
+
+**🐛 Bug bulursanız issue açın!** 📝
+
+**🎮 İyi oyunlar!** 🚀

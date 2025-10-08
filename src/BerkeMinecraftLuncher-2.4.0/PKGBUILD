@@ -1,6 +1,6 @@
 # Maintainer: Berke Oruç <berke3oruc@gmail.com>
 pkgname=berkemc
-pkgver=2.5.1
+pkgver=2.4.0
 pkgrel=1
 pkgdesc="Advanced Minecraft launcher with mod support, skin management, and performance monitoring"
 arch=('any')
@@ -9,7 +9,7 @@ license=('MIT')
 depends=('python>=3.8' 'java-runtime>=17' 'python-requests' 'python-rich' 'python-colorama' 'python-psutil')
 makedepends=('python-setuptools')
 source=("berkemc-$pkgver.tar.gz::https://github.com/BerkeOruc/BerkeMinecraftLuncher/archive/v$pkgver.tar.gz")
-sha256sums=('4ea5dd7cc3fbfcc214d1b960b951c50a302566e209dadd51d5e91c853e013995')
+sha256sums=('9aa00139a598e51aebd76532c25745c2d6c45a5760970d0766f388280cfa50c9')
 
 package() {
     cd "$srcdir/BerkeMinecraftLuncher-$pkgver"
@@ -32,9 +32,4 @@ package() {
     
     # Install documentation
     install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
-    install -Dm644 ARCH_HYPRLAND_KURULUM.md "$pkgdir/usr/share/doc/$pkgname/ARCH_HYPRLAND_KURULUM.md"
-    install -Dm644 INSTALLATION_GUIDE.md "$pkgdir/usr/share/doc/$pkgname/INSTALLATION_GUIDE.md"
-    
-    # Post-install message
-    install -Dm644 berkemc-post-install.sh "$pkgdir/usr/share/doc/$pkgname/post-install.sh"
 }

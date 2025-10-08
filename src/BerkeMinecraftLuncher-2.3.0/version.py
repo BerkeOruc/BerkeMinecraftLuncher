@@ -3,7 +3,7 @@
 Berke Minecraft Launcher - Version Information
 """
 
-__version__ = "2.5.1"
+__version__ = "2.3.0"
 __author__ = "Berke Oruç"
 __email__ = "berke3oruc@gmail.com"
 __license__ = "MIT"
@@ -12,31 +12,22 @@ __url__ = "https://github.com/berke0/BerkeMinecraftLuncher"
 
 # Version info
 VERSION_MAJOR = 2
-VERSION_MINOR = 5
-VERSION_PATCH = 1
+VERSION_MINOR = 3
+VERSION_PATCH = 0
 VERSION_INFO = (VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH)
 
 # Build info
-BUILD_DATE = "2025-10-08"
-BUILD_NUMBER = "20251008"
+BUILD_DATE = "2025-10-04"
+BUILD_NUMBER = "20251004"
 
 # Feature flags
 FEATURES = {
     "mod_system": True,
     "skin_system": True,
     "performance_monitor": True,
-    "java_management": True,
-    "advanced_download": True,
-    "window_fixes": True,
-    "java_compatibility": True,  # Yeni!
-    "mod_loader_support": True,  # Yeni!
-    "skin_preview": True,  # Yeni!
-    "first_run_setup": True,  # Yeni!
-    "auto_update": True,  # Yeni!
-    "desktop_integration": True,  # Yeni!
-    "forge_support": True,  # Yeni!
-    "fabric_support": True,  # Yeni!
-    "optifine_support": True,  # Yeni!
+    "auto_update": False,  # Yakında!
+    "forge_support": False,  # Yakında!
+    "fabric_support": False,  # Yakında!
 }
 
 def get_version_string() -> str:

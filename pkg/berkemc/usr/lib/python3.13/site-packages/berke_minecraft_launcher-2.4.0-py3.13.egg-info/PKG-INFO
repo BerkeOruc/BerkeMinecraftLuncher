@@ -1,0 +1,126 @@
+Metadata-Version: 2.4
+Name: berke-minecraft-launcher
+Version: 2.4.0
+Summary: Advanced Minecraft launcher with mod support, skin management, and performance monitoring
+Home-page: https://github.com/berke0/BerkeMinecraftLuncher
+Author: Berke Oruç
+Author-email: berke3oruc@gmail.com
+License: MIT
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: End Users/Desktop
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Games/Entertainment
+Classifier: Topic :: System :: Systems Administration
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests>=2.32.0
+Requires-Dist: rich>=14.1.0
+Requires-Dist: colorama>=0.4.6
+Requires-Dist: psutil>=7.1.0
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# 🚀 BerkeMC - Ultra Fast Minecraft Launcher
+
+> **Terminal tabanlı, ultra hızlı Minecraft launcher - Arch Linux için optimize edilmiş**
+
+## ✨ Özellikler
+
+### 🎮 Minecraft Desteği
+- ✅ **Tüm sürümler**: Alpha, Beta, Release, Snapshot (a1.0 → latest)
+- ✅ **Online sunucu desteği**: UUID + Mojang protocol
+- ✅ **Eski sürüm uyumluluğu**: Alpha/Beta tam destek
+
+### ⚡ Performans
+- ✅ **Ultra hızlı indirme**: 16 paralel thread + 1MB chunks
+- ✅ **Akıllı cache**: 1 saat TTL + offline mode
+- ✅ **JVM optimizasyonları**: Aikar's Flags Enhanced
+- ✅ **Performans profilleri**: Ultra, Yüksek, Orta, Düşük
+- ✅ **Performans testi**: CPU/RAM/Disk skoru + FPS tahmini
+
+### 🎨 Özelleştirme
+- ✅ **Skin yönetimi**: Upload, download, backup
+- ✅ **Mod yönetimi**: Modrinth API entegrasyonu
+- ✅ **Tema**: Minimal TUI (rich library)
+
+### 🖥️ Sistem
+- ✅ **Wayland/Hyprland**: XWayland desteği
+- ✅ **Sistem entegrasyonu**: `berkemc` komutu
+- ✅ **Desktop entry**: Uygulama menüsü
+
+## 📦 Kurulum
+
+### Otomatik Kurulum (Önerilen)
+```bash
+# GitHub'dan indir
+git clone https://github.com/berke0/BerkeMinecraftLuncher.git
+cd BerkeMinecraftLuncher
+
+# Kurulum scriptini çalıştır
+chmod +x install.sh
+./install.sh
+```
+
+### Manuel Kurulum
+```bash
+# Bağımlılıkları kur
+pip install -r requirements.txt
+
+# Launcher'ı başlat
+./start.sh
+```
+
+## 🎯 Kullanım
+
+```bash
+# Launcher başlat
+berkemc
+
+# Veya
+./start.sh
+```
+
+## 📊 Performans
+
+- **İndirme hızı**: 20+ MB/s (16 thread)
+- **Menü açılış**: 0.2 saniye (cache)
+- **FPS**: 300-500+ (Ultra profil)
+- **RAM kullanımı**: 2-16GB (ayarlanabilir)
+
+## 🔧 Gereksinimler
+
+- Python 3.10+
+- Java 21+ (otomatik kurulur)
+- Arch Linux (veya türevleri)
+
+## 📝 Lisans
+
+MIT License
+
+## 🙏 Teşekkürler
+
+- Aikar's Flags
+- Modrinth API
+- Rich library
+
+---
+
+**İyi oyunlar! 🎮⚡**

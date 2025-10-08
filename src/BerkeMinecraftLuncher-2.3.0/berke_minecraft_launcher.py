@@ -14,7 +14,6 @@ import base64
 import uuid
 import hashlib
 import time
-import re
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -78,9 +77,9 @@ class MinecraftLauncher:
         
         # Java yollarını dene (Minecraft uyumlu sürümler önce)
         java_paths = [
-            "/usr/lib/jvm/java-21-openjdk/bin/java",
-            "/usr/lib/jvm/java-17-openjdk/bin/java",
             "/usr/lib/jvm/java-25-openjdk/bin/java",
+            "/usr/lib/jvm/java-17-openjdk/bin/java",
+            "/usr/lib/jvm/java-21-openjdk/bin/java",
             "/usr/lib/jvm/java-22-openjdk/bin/java",
             "/usr/lib/jvm/java-23-openjdk/bin/java",
             "/usr/lib/jvm/java-24-openjdk/bin/java",
@@ -150,558 +149,14 @@ class MinecraftLauncher:
             
             # Java sürümünü parse et
             import re
-            version_match = re.search(r'version "(\d+)\.(\d+)\.(\d+)', version_output)
+            version_match = re.search(r'version "(\d+)', version_output)
             if version_match:
-                major = int(version_match.group(1))
-                minor = int(version_match.group(2))
-                patch = int(version_match.group(3))
-                return f"{major}.{minor}.{patch}"
+                java_version = int(version_match.group(1))
+                return java_version
             return None
         except Exception as e:
             self.console.print(f"[red]Java sürüm kontrolü başarısız: {e}[/red]")
             return None
-    
-    def _get_available_java_versions(self):
-        """Sistemdeki tüm Java sürümlerini bul"""
-        java_versions = []
-        java_dirs = [
-            "/usr/lib/jvm/",
-            "/usr/java/",
-            "/opt/java/"
-        ]
-        
-        # Önce sistemdeki Java sürümlerini bul
-        for java_dir in java_dirs:
-            if os.path.exists(java_dir):
-                try:
-                    for item in os.listdir(java_dir):
-                        java_path = os.path.join(java_dir, item, "bin", "java")
-                        if os.path.exists(java_path):
-                            version = self._check_java_version_at_path(java_path)
-                            if version:
-                                java_versions.append({
-                                    "path": java_path,
-                                    "version": version,
-                                    "name": item,
-                                    "installed": True
-                                })
-                except:
-                    continue
-        
-        return sorted(java_versions, key=lambda x: x["version"], reverse=True)
-    
-    def _get_installed_java_versions(self):
-        """Sadece kurulu Java sürümlerini bul"""
-        java_versions = []
-        java_dirs = [
-            "/usr/lib/jvm/",
-            "/usr/java/",
-            "/opt/java/"
-        ]
-        
-        for java_dir in java_dirs:
-            if os.path.exists(java_dir):
-                try:
-                    for item in os.listdir(java_dir):
-                        # Sadece java- ile başlayan dizinleri kontrol et
-                        if item.startswith("java-") and os.path.isdir(os.path.join(java_dir, item)):
-                            java_path = os.path.join(java_dir, item, "bin", "java")
-                            if os.path.exists(java_path):
-                                version = self._check_java_version_at_path(java_path)
-                                if version:
-                                    java_versions.append({
-                                        "path": java_path,
-                                        "version": version,
-                                        "name": item,
-                                        "installed": True
-                                    })
-                except Exception as e:
-                    print(f"Java dizini okuma hatası: {e}")
-                    continue
-        
-        return sorted(java_versions, key=lambda x: x["version"], reverse=True)
-    
-    def _get_recommended_java_for_version(self, version_id: str):
-        """Minecraft sürümü için önerilen Java'yı bul"""
-        try:
-            # Sürüm numarasını parse et
-            if '.' in version_id:
-                parts = version_id.split('.')
-                if len(parts) >= 2:
-                    major = int(parts[0])
-                    minor = int(parts[1])
-                    
-                    # Minecraft sürümüne göre Java önerisi
-                    if major >= 21:
-                        recommended_major = 21
-                    elif major >= 19:
-                        recommended_major = 17
-                    elif major >= 17:
-                        recommended_major = 17
-                    elif major >= 12:
-                        recommended_major = 17
-                    else:
-                        recommended_major = 11
-                    
-                    # Kurulu Java'lardan önerilen sürümü bul
-                    installed_java = self._get_installed_java_versions()
-                    for java in installed_java:
-                        try:
-                            java_major = int(java["version"].split('.')[0])
-                            if java_major == recommended_major:
-                                return java
-                        except:
-                            continue
-                    
-                    # Önerilen sürüm yoksa en yakın uyumlu sürümü bul
-                    for java in installed_java:
-                        try:
-                            java_major = int(java["version"].split('.')[0])
-                            if java_major >= recommended_major:
-                                return java
-                        except:
-                            continue
-        except:
-            pass
-        
-        return None
-    
-    def _get_installable_java_versions(self):
-        """Kurulabilir Java sürümlerini listele"""
-        installable_versions = []
-        
-        # Java 11-25 arası tüm sürümler
-        java_versions = [
-            {"version": "25.0.0", "name": "OpenJDK 25", "package": "jdk25-openjdk"},
-            {"version": "24.0.0", "name": "OpenJDK 24", "package": "jdk24-openjdk"},
-            {"version": "23.0.0", "name": "OpenJDK 23", "package": "jdk23-openjdk"},
-            {"version": "22.0.0", "name": "OpenJDK 22", "package": "jdk22-openjdk"},
-            {"version": "21.0.8", "name": "OpenJDK 21", "package": "jdk21-openjdk"},
-            {"version": "20.0.2", "name": "OpenJDK 20", "package": "jdk20-openjdk"},
-            {"version": "19.0.2", "name": "OpenJDK 19", "package": "jdk19-openjdk"},
-            {"version": "18.0.2", "name": "OpenJDK 18", "package": "jdk18-openjdk"},
-            {"version": "17.0.16", "name": "OpenJDK 17", "package": "jdk17-openjdk"},
-            {"version": "16.0.2", "name": "OpenJDK 16", "package": "jdk16-openjdk"},
-            {"version": "15.0.2", "name": "OpenJDK 15", "package": "jdk15-openjdk"},
-            {"version": "14.0.2", "name": "OpenJDK 14", "package": "jdk14-openjdk"},
-            {"version": "13.0.2", "name": "OpenJDK 13", "package": "jdk13-openjdk"},
-            {"version": "12.0.2", "name": "OpenJDK 12", "package": "jdk12-openjdk"},
-            {"version": "11.0.24", "name": "OpenJDK 11", "package": "jdk11-openjdk"},
-            {"version": "8.0.462", "name": "OpenJDK 8", "package": "jdk8-openjdk"}
-        ]
-        
-        for java_info in java_versions:
-            installable_versions.append({
-                "path": f"/usr/lib/jvm/{java_info['package']}/bin/java",
-                "version": java_info["version"],
-                "name": java_info["name"],
-                "package": java_info["package"],
-                "installed": False
-            })
-        
-        return installable_versions
-    
-    def _check_java_version_at_path(self, java_path):
-        """Belirli bir Java yolundaki sürümü kontrol et"""
-        try:
-            result = subprocess.run([java_path, "-version"], 
-                                  capture_output=True, text=True, timeout=10)
-            if result.returncode == 0:
-                version_output = result.stderr
-                version_match = re.search(r'version "(\d+)\.(\d+)\.(\d+)', version_output)
-                if version_match:
-                    major = int(version_match.group(1))
-                    minor = int(version_match.group(2))
-                    patch = int(version_match.group(3))
-                    return f"{major}.{minor}.{patch}"
-            return None
-        except Exception as e:
-            print(f"Java version check error: {e}")
-            return None
-    
-    def _show_java_management_menu(self):
-        """Java yönetimi menüsü"""
-        while True:
-            os.system('clear')
-            
-            current_java = self._check_java_version()
-            java_versions = self._get_installed_java_versions()
-            
-            self.console.print(Panel(
-                f"[bold cyan]☕ JAVA YÖNETİMİ[/bold cyan]\n"
-                f"[dim]Mevcut Java: {current_java or 'Bulunamadı'}[/dim]",
-                border_style="cyan",
-                padding=(1, 2)
-            ))
-            
-            self.console.print()
-            
-            # Java sürümleri listesi - sadece kurulu olanlar
-            installed_java = self._get_installed_java_versions()
-            if installed_java:
-                self.console.print("[bold]Kurulu Java Sürümleri:[/bold]")
-                for i, java in enumerate(installed_java, 1):
-                    current_marker = " [green]✓[/green]" if java["path"] == self.java_executable else ""
-                    # Java uyumluluğu kontrolü
-                    try:
-                        major_version = int(java["version"].split('.')[0])
-                        if major_version >= 17:
-                            compatibility = "[green]✅ Uyumlu[/green]"
-                        elif major_version >= 11:
-                            compatibility = "[yellow]⚠️ Eski[/yellow]"
-                        else:
-                            compatibility = "[red]❌ Uyumsuz[/red]"
-                    except:
-                        compatibility = "[dim]?[/dim]"
-                    
-                    self.console.print(f"  [cyan]{i}[/cyan]  {java['name']:25} {java['version']:10} {compatibility}{current_marker}")
-                
-                # Otomatik önerilen Java
-                recommended_java = None
-                for java in installed_java:
-                    try:
-                        major_version = int(java["version"].split('.')[0])
-                        if major_version == 21:
-                            recommended_java = java
-                            break
-                        elif major_version == 17 and not recommended_java:
-                            recommended_java = java
-                    except:
-                        continue
-                
-                if recommended_java and recommended_java["path"] != self.java_executable:
-                    self.console.print(f"\n[cyan]💡 Önerilen Java: {recommended_java['name']} ({recommended_java['version']})[/cyan]")
-                    if Confirm.ask("Önerilen Java'yı otomatik seçmek ister misiniz?", default=True):
-                        self.java_executable = recommended_java["path"]
-                        self.config["java_path"] = recommended_java["path"]
-                        self._save_config()
-                        self.console.print(f"[green]✅ Java otomatik seçildi: {recommended_java['name']}[/green]")
-                        input("[dim]Enter...[/dim]")
-                        continue
-            else:
-                self.console.print("[red]❌ Hiç Java sürümü kurulu değil![/red]")
-            
-            self.console.print()
-            
-            # Menü seçenekleri
-            self.console.print("[bold]Seçenekler:[/bold]")
-            self.console.print("  [cyan]1[/cyan]  Java Sürümü Seç")
-            self.console.print("  [cyan]2[/cyan]  Java İndir ve Kur")
-            self.console.print("  [cyan]3[/cyan]  Java Ara")
-            self.console.print("  [cyan]4[/cyan]  Java Sürümü Sil")
-            self.console.print("  [cyan]5[/cyan]  Java Test Et")
-            self.console.print("  [cyan]6[/cyan]  Java Bilgileri")
-            self.console.print()
-            self.console.print("  [dim]0[/dim]  Geri")
-            
-            choice = Prompt.ask("\n[cyan]>[/cyan]", choices=["0", "1", "2", "3", "4", "5", "6"])
-            
-            if choice == "0":
-                break
-            elif choice == "1":
-                self._select_java_version(installed_java)
-            elif choice == "2":
-                self._download_and_install_java()
-            elif choice == "3":
-                self._search_java_versions()
-            elif choice == "4":
-                self._uninstall_java_version()
-            elif choice == "5":
-                self._test_java()
-            elif choice == "6":
-                self._show_java_info()
-    
-    def _select_java_version(self, java_versions):
-        """Java sürümü seç - sadece kurulu sürümler"""
-        if not java_versions:
-            self.console.print("[red]❌ Seçilecek Java sürümü yok![/red]")
-            self.console.print("[yellow]Önce Java kurulumu yapın: Java İndir ve Kur[/yellow]")
-            input("[dim]Enter...[/dim]")
-            return
-        
-        self.console.print("\n[bold]Java sürümü seçin:[/bold]")
-        for i, java in enumerate(java_versions, 1):
-            self.console.print(f"  [cyan]{i}[/cyan]  {java['name']} ({java['version']}) [green]✓ Kurulu[/green]")
-        
-        try:
-            choice = int(Prompt.ask("\n[cyan]>[/cyan]"))
-            if 1 <= choice <= len(java_versions):
-                selected_java = java_versions[choice-1]
-                
-                self.java_executable = selected_java["path"]
-                self.config["java_path"] = selected_java["path"]
-                self._save_config()
-                self.console.print(f"[green]✅ Java sürümü değiştirildi: {selected_java['name']}[/green]")
-                input("[dim]Enter...[/dim]")
-            else:
-                self.console.print("[red]❌ Geçersiz seçim![/red]")
-                input("[dim]Enter...[/dim]")
-        except ValueError:
-            self.console.print("[red]❌ Geçersiz giriş![/red]")
-            input("[dim]Enter...[/dim]")
-    
-    def _install_java_package(self, package_name):
-        """Java paketini kur"""
-        try:
-            result = subprocess.run(["sudo", "pacman", "-S", package_name, "--noconfirm"], 
-                                  capture_output=True, text=True)
-            return result.returncode == 0
-        except:
-            return False
-    
-    def _download_and_install_java(self):
-        """Java indir ve kur"""
-        self.console.print("\n[bold]Java İndirme ve Kurulum[/bold]")
-        
-        # Kurulabilir Java sürümlerini göster
-        installable_versions = self._get_installable_java_versions()
-        
-        self.console.print("\n[bold]Kurulabilir Java Sürümleri:[/bold]")
-        for i, java in enumerate(installable_versions, 1):
-            self.console.print(f"  [cyan]{i}[/cyan]  {java['name']} ({java['version']})")
-        
-        try:
-            choice = int(Prompt.ask("\n[cyan]Java sürümü seçin (0 = İptal)[/cyan]"))
-            if choice == 0:
-                return
-            
-            if 1 <= choice <= len(installable_versions):
-                selected_java = installable_versions[choice-1]
-                self.console.print(f"\n[blue]📦 {selected_java['name']} kuruluyor...[/blue]")
-                
-                if self._install_java_package(selected_java["package"]):
-                    self.console.print(f"[green]✅ {selected_java['name']} başarıyla kuruldu![/green]")
-                    
-                    # Otomatik olarak bu sürümü seç
-                    java_path = f"/usr/lib/jvm/{selected_java['package']}/bin/java"
-                    if os.path.exists(java_path):
-                        self.java_executable = java_path
-                        self.config["java_path"] = java_path
-                        self._save_config()
-                        self.console.print(f"[green]✅ {selected_java['name']} aktif Java sürümü olarak ayarlandı![/green]")
-                else:
-                    self.console.print(f"[red]❌ {selected_java['name']} kurulumu başarısız![/red]")
-            else:
-                self.console.print("[red]❌ Geçersiz seçim![/red]")
-        except ValueError:
-            self.console.print("[red]❌ Geçersiz giriş![/red]")
-        
-        input("[dim]Enter...[/dim]")
-    
-    def _search_java_versions(self):
-        """Java sürümlerini ara"""
-        self.console.print("\n[bold]Java Sürüm Arama[/bold]")
-        
-        search_term = Prompt.ask("[cyan]Aranacak Java sürümü (örn: 17, 21, openjdk)[/cyan]")
-        
-        if not search_term:
-            self.console.print("[red]❌ Arama terimi boş olamaz![/red]")
-            input("[dim]Enter...[/dim]")
-            return
-        
-        # Kurulabilir sürümlerde ara
-        installable_versions = self._get_installable_java_versions()
-        search_results = []
-        
-        for java in installable_versions:
-            if (search_term.lower() in java['name'].lower() or 
-                search_term.lower() in java['version'].lower() or
-                search_term.lower() in java['package'].lower()):
-                search_results.append(java)
-        
-        if search_results:
-            self.console.print(f"\n[bold]'{search_term}' için bulunan sonuçlar:[/bold]")
-            for i, java in enumerate(search_results, 1):
-                self.console.print(f"  [cyan]{i}[/cyan]  {java['name']} ({java['version']})")
-            
-            try:
-                choice = int(Prompt.ask("\n[cyan]Kurulacak sürümü seçin (0 = İptal)[/cyan]"))
-                if choice == 0:
-                    return
-                
-                if 1 <= choice <= len(search_results):
-                    selected_java = search_results[choice-1]
-                    self.console.print(f"\n[blue]📦 {selected_java['name']} kuruluyor...[/blue]")
-                    
-                    if self._install_java_package(selected_java["package"]):
-                        self.console.print(f"[green]✅ {selected_java['name']} başarıyla kuruldu![/green]")
-                    else:
-                        self.console.print(f"[red]❌ {selected_java['name']} kurulumu başarısız![/red]")
-                else:
-                    self.console.print("[red]❌ Geçersiz seçim![/red]")
-            except ValueError:
-                self.console.print("[red]❌ Geçersiz giriş![/red]")
-        else:
-            self.console.print(f"[yellow]⚠️ '{search_term}' için sonuç bulunamadı![/yellow]")
-        
-        input("[dim]Enter...[/dim]")
-    
-    def _uninstall_java_version(self):
-        """Java sürümü sil"""
-        self.console.print("\n[bold]Java Sürümü Silme[/bold]")
-        
-        # Kurulu Java sürümlerini bul
-        java_versions = []
-        java_dirs = ["/usr/lib/jvm/"]
-        
-        for java_dir in java_dirs:
-            if os.path.exists(java_dir):
-                try:
-                    for item in os.listdir(java_dir):
-                        if item.startswith("java-") and "openjdk" in item:
-                            java_versions.append(item)
-                except:
-                    continue
-        
-        if not java_versions:
-            self.console.print("[yellow]⚠️ Silinecek Java sürümü bulunamadı![/yellow]")
-            input("[dim]Enter...[/dim]")
-            return
-        
-        self.console.print("\n[bold]Silinecek Java sürümünü seçin:[/bold]")
-        for i, java in enumerate(java_versions, 1):
-            self.console.print(f"  [cyan]{i}[/cyan]  {java}")
-        
-        try:
-            choice = int(Prompt.ask("\n[cyan]Silinecek sürümü seçin (0 = İptal)[/cyan]"))
-            if choice == 0:
-                return
-            
-            if 1 <= choice <= len(java_versions):
-                selected_java = java_versions[choice-1]
-                
-                if Confirm.ask(f"[red]'{selected_java}' sürümünü silmek istediğinizden emin misiniz?[/red]"):
-                    # Paket adını tahmin et
-                    package_name = selected_java.replace("java-", "").replace("-openjdk", "-openjdk")
-                    if not package_name.endswith("-openjdk"):
-                        package_name += "-openjdk"
-                    
-                    self.console.print(f"[blue]🗑️ {selected_java} siliniyor...[/blue]")
-                    
-                    try:
-                        result = subprocess.run(["sudo", "pacman", "-R", package_name, "--noconfirm"], 
-                                              capture_output=True, text=True)
-                        if result.returncode == 0:
-                            self.console.print(f"[green]✅ {selected_java} başarıyla silindi![/green]")
-                        else:
-                            self.console.print(f"[red]❌ {selected_java} silme işlemi başarısız![/red]")
-                    except:
-                        self.console.print(f"[red]❌ {selected_java} silme işlemi başarısız![/red]")
-                else:
-                    self.console.print("[yellow]İşlem iptal edildi.[/yellow]")
-            else:
-                self.console.print("[red]❌ Geçersiz seçim![/red]")
-        except ValueError:
-            self.console.print("[red]❌ Geçersiz giriş![/red]")
-        
-        input("[dim]Enter...[/dim]")
-    
-    def _set_java_path_manual(self):
-        """Java yolunu manuel gir"""
-        self.console.print("\n[bold]Java yolu girin:[/bold]")
-        java_path = Prompt.ask("[cyan]Java yolu[/cyan]")
-        
-        if os.path.exists(java_path):
-            version = self._check_java_version_at_path(java_path)
-            if version:
-                self.java_executable = java_path
-                self.config["java_path"] = java_path
-                self._save_config()
-                self.console.print(f"[green]✅ Java yolu ayarlandı: {java_path} ({version})[/green]")
-            else:
-                self.console.print("[red]❌ Geçerli bir Java executable'ı değil![/red]")
-        else:
-            self.console.print("[red]❌ Dosya bulunamadı![/red]")
-        
-        input("[dim]Enter...[/dim]")
-    
-    def _install_java(self):
-        """Java kurulum menüsü"""
-        self.console.print("\n[bold]Java Kurulum Seçenekleri:[/bold]")
-        self.console.print("  [cyan]1[/cyan]  OpenJDK 17 (Stabil)")
-        self.console.print("  [cyan]2[/cyan]  OpenJDK 21 (Önerilen)")
-        self.console.print("  [cyan]3[/cyan]  OpenJDK 11 (Eski sürümler için)")
-        self.console.print("  [cyan]4[/cyan]  Oracle JDK (Üçüncü parti)")
-        
-        choice = Prompt.ask("\n[cyan]>[/cyan]", choices=["1", "2", "3", "4"])
-        
-        java_packages = {
-            "1": "jdk17-openjdk",
-            "2": "jdk21-openjdk", 
-            "3": "jdk11-openjdk",
-            "4": "jdk17-openjdk"  # Oracle için alternatif
-        }
-        
-        package = java_packages.get(choice)
-        if package:
-            self.console.print(f"\n[blue]Java kuruluyor: {package}[/blue]")
-            self.console.print("[yellow]Bu işlem sudo yetkisi gerektirir![/yellow]")
-            
-            if Confirm.ask("Devam etmek istiyor musunuz?"):
-                try:
-                    result = subprocess.run(["sudo", "pacman", "-S", package, "--noconfirm"], 
-                                          capture_output=True, text=True)
-                    if result.returncode == 0:
-                        self.console.print("[green]✅ Java başarıyla kuruldu![/green]")
-                        self._save_config()
-                    else:
-                        self.console.print(f"[red]❌ Kurulum hatası: {result.stderr}[/red]")
-                except Exception as e:
-                    self.console.print(f"[red]❌ Kurulum hatası: {e}[/red]")
-        
-        input("[dim]Enter...[/dim]")
-    
-    def _test_java(self):
-        """Java test et"""
-        self.console.print("\n[bold]Java Test Sonuçları:[/bold]")
-        
-        if not self.java_executable:
-            self.console.print("[red]❌ Java executable bulunamadı![/red]")
-            input("[dim]Enter...[/dim]")
-            return
-        
-        try:
-            # Java sürümü
-            version = self._check_java_version()
-            self.console.print(f"[green]✅ Java Sürümü: {version}[/green]")
-            
-            # Java bilgileri
-            result = subprocess.run([self.java_executable, "-version"], 
-                                  capture_output=True, text=True, timeout=10)
-            if result.returncode == 0:
-                self.console.print("[green]✅ Java çalışıyor![/green]")
-                self.console.print(f"[dim]Detay: {result.stderr.split('\\n')[0]}[/dim]")
-            else:
-                self.console.print("[red]❌ Java çalışmıyor![/red]")
-                
-        except Exception as e:
-            self.console.print(f"[red]❌ Java test hatası: {e}[/red]")
-        
-        input("[dim]Enter...[/dim]")
-    
-    def _show_java_info(self):
-        """Java bilgileri göster"""
-        self.console.print("\n[bold]Java Bilgileri:[/bold]")
-        
-        if self.java_executable:
-            self.console.print(f"[green]Java Yolu: {self.java_executable}[/green]")
-            version = self._check_java_version()
-            self.console.print(f"[green]Java Sürümü: {version}[/green]")
-            
-            try:
-                result = subprocess.run([self.java_executable, "-version"], 
-                                      capture_output=True, text=True, timeout=10)
-                if result.returncode == 0:
-                    self.console.print("\n[bold]Detaylı Bilgi:[/bold]")
-                    for line in result.stderr.split('\\n')[:3]:
-                        if line.strip():
-                            self.console.print(f"[dim]{line}[/dim]")
-            except:
-                pass
-        else:
-            self.console.print("[red]❌ Java bulunamadı![/red]")
-        
-        input("[dim]Enter...[/dim]")
     
     def _auto_update_java(self):
         """Java'yı otomatik güncelle (Arch Linux)"""
@@ -922,7 +377,7 @@ class MinecraftLauncher:
         """B Logo Banner - Minimal ve Şık"""
         logo = """
 [bold cyan]██████╗ [/bold cyan] [bold white]BERKE MINECRAFT LAUNCHER[/bold white]
-[bold cyan]██╔══██╗[/bold cyan] [dim]v2.4.0 - Ultra Fast Edition[/dim]
+[bold cyan]██╔══██╗[/bold cyan] [dim]v2.3.0 - Ultra Fast Edition[/dim]
 [bold cyan]██████╔╝[/bold cyan]
 [bold cyan]██╔══██╗[/bold cyan]
 [bold cyan]██████╔╝[/bold cyan]
@@ -1059,14 +514,6 @@ class MinecraftLauncher:
     def _download_version(self, version_id: str) -> bool:
         """Minecraft sürümü indir"""
         try:
-            # İndirme ekranı başlat
-            self.console.print(Panel(
-                f"[bold cyan]MINECRAFT SÜRÜM İNDİRİLİYOR[/bold cyan]\n"
-                f"[dim]Sürüm: {version_id}[/dim]",
-                border_style="cyan",
-                padding=(1, 2)
-            ))
-            
             self.console.print(f"[blue]🔍 Sürüm bilgileri alınıyor: {version_id}[/blue]")
             versions = self._get_available_versions()
             version_info = None
@@ -1083,15 +530,10 @@ class MinecraftLauncher:
             version_dir = self.versions_dir / version_id
             version_dir.mkdir(exist_ok=True)
             
-            self.console.print(f"[green]✅ Sürüm dizini oluşturuldu: {version_dir}[/green]")
-            
             # Sürüm JSON'unu indir
             version_json_path = version_dir / f"{version_id}.json"
-            self.console.print(f"[blue]📄 Sürüm JSON'u indiriliyor...[/blue]")
             if not self._download_file(version_info["url"], version_json_path, f"{version_id} JSON"):
-                self.console.print(f"[red]❌ Sürüm JSON'u indirilemedi![/red]")
                 return False
-            self.console.print(f"[green]✅ Sürüm JSON'u indirildi![/green]")
             
             # Sürüm JSON'unu oku
             try:
@@ -1102,14 +544,11 @@ class MinecraftLauncher:
                 return False
             
             # Client JAR'ı indir (eski sürümler için hata yakalama)
-            self.console.print(f"[blue]📦 Client JAR indiriliyor...[/blue]")
             try:
                 client_jar_url = version_data["downloads"]["client"]["url"]
                 client_jar_path = version_dir / f"{version_id}.jar"
                 if not self._download_file(client_jar_url, client_jar_path, f"{version_id} Client"):
-                    self.console.print(f"[red]❌ Client JAR indirilemedi![/red]")
                     return False
-                self.console.print(f"[green]✅ Client JAR indirildi![/green]")
             except KeyError:
                 self.console.print(f"[yellow]⚠️ Eski sürüm formatı tespit edildi, alternatif yöntem deneniyor...[/yellow]")
                 # Eski sürümler için alternatif URL
@@ -1269,94 +708,13 @@ class MinecraftLauncher:
         
         # Wayland/Hyprland desteği için environment değişkenleri
         wayland_env = {
-            # X11/Wayland Environment
             "GDK_BACKEND": "x11",  # XWayland kullan
             "QT_QPA_PLATFORM": "xcb",  # Qt için X11
             "SDL_VIDEODRIVER": "x11",  # SDL için X11
             "MOZ_ENABLE_WAYLAND": "0",  # Firefox için X11
-            "DISPLAY": os.environ.get("DISPLAY", ":0"),  # X11 display
-            "WAYLAND_DISPLAY": "",  # Wayland'i devre dışı bırak
-            "HYPRLAND_INSTANCE_SIGNATURE": "",  # Hyprland'i devre dışı bırak
-            
-            # Java AWT Settings
             "_JAVA_AWT_WM_NONREPARENTING": "1",  # Java AWT için
             "AWT_TOOLKIT": "MToolkit",  # Java AWT toolkit
-            "JAVA_TOOL_OPTIONS": "-Djava.awt.headless=false",  # Headless modu kapat
-            
-            # Graphics Settings
-            "LIBGL_ALWAYS_SOFTWARE": "0",  # Hardware acceleration
-            "LIBGL_ALWAYS_INDIRECT": "0",  # Direct rendering
-            "MESA_GL_VERSION_OVERRIDE": "4.5",  # Mesa GL version
-            "MESA_GLSL_VERSION_OVERRIDE": "450",  # Mesa GLSL version
-            "MESA_NO_ERROR": "1",  # Mesa hata kontrolü
-            "DRI_PRIME": "1",  # GPU acceleration
-            "vblank_mode": "0",  # V-sync kapalı
-            "__GL_THREADED_OPTIMIZATIONS": "1",  # Threaded optimizations
-            
-            # Window Management
-            "GDK_SYNCHRONIZE": "1",  # X11 senkronizasyonu
-            "X11_FORCE_SOFTWARE": "0",  # Force hardware acceleration
-            "X11_NO_HARDWARE": "0",  # Allow hardware acceleration
-            "X11_SOFTWARE_CURSOR": "0",  # Use hardware cursor
-            "X11_VSYNC": "0",  # Disable VSync
-            "X11_NO_BACKING_STORE": "0",  # Enable backing store
-            "X11_NO_SAVE_UNDERS": "0",  # Enable save unders
-            "X11_NO_DAMAGE": "0",  # Enable damage extension
-            "X11_NO_GLX": "0",  # Enable GLX
-            "X11_NO_COMPOSITE": "0",  # Enable composite extension
-            "X11_NO_RENDER": "0",  # Enable render extension
-            "X11_NO_XFIXES": "0",  # Enable XFixes extension
-            "X11_NO_XINERAMA": "0",  # Enable Xinerama
-            "X11_NO_XRANDR": "0",  # Enable XRandR
-            "X11_NO_XSYNC": "0",  # Enable XSync
-            "X11_NO_XTEST": "0",  # Enable XTest
-            "X11_NO_XV": "0",  # Enable XVideo
-            "X11_NO_XINPUT": "0",  # Enable XInput
-            "X11_NO_XKB": "0",  # Enable XKB
-            "X11_NO_XCURSOR": "0",  # Enable XCursor
-            "X11_NO_XFONT": "0",  # Enable XFont
-            "X11_NO_XFT": "0",  # Enable Xft
-            "X11_NO_XPM": "0",  # Enable XPM
-            "X11_NO_XSHM": "0",  # Enable XShm
-            "X11_NO_XTST": "0",  # Enable XTst
-            "X11_NO_XVMC": "0",  # Enable XVMC
-            "X11_NO_XVMCLIB": "0",  # Enable XVMCLib
-            "MESA_GLSL_VERSION_OVERRIDE": "450",  # GLSL version override
-            
-            # Minecraft Window Fix
-            "MESA_VK_DEVICE_SELECT": "0",  # Mesa Vulkan device selection
-            "MESA_LOADER_DRIVER_OVERRIDE": "zink",  # Mesa loader override
-            "GALLIUM_DRIVER": "zink",  # Gallium driver
-            "LIBGL_DRIVERS_PATH": "/usr/lib/dri",  # OpenGL drivers path
-            "VK_ICD_FILENAMES": "/usr/share/vulkan/icd.d/intel_icd.x86_64.json",  # Vulkan ICD
-            
-            # Window Persistence Fix
-            "X11_FORCE_SOFTWARE": "0",  # Force hardware acceleration
-            "X11_NO_HARDWARE": "0",  # Allow hardware acceleration
-            "X11_SOFTWARE_CURSOR": "0",  # Use hardware cursor
-            "X11_VSYNC": "0",  # Disable VSync
-            "X11_NO_BACKING_STORE": "0",  # Enable backing store
-            "X11_NO_SAVE_UNDERS": "0",  # Enable save unders
-            "X11_NO_DAMAGE": "0",  # Enable damage extension
-            "X11_NO_GLX": "0",  # Enable GLX
-            "X11_NO_COMPOSITE": "0",  # Enable composite extension
-            "X11_NO_RENDER": "0",  # Enable render extension
-            "X11_NO_XFIXES": "0",  # Enable XFixes extension
-            "X11_NO_XINERAMA": "0",  # Enable Xinerama
-            "X11_NO_XRANDR": "0",  # Enable XRandR
-            "X11_NO_XSYNC": "0",  # Enable XSync
-            "X11_NO_XTEST": "0",  # Enable XTest
-            "X11_NO_XV": "0",  # Enable XVideo
-            "X11_NO_XINPUT": "0",  # Enable XInput
-            "X11_NO_XKB": "0",  # Enable XKB
-            "X11_NO_XCURSOR": "0",  # Enable XCursor
-            "X11_NO_XFONT": "0",  # Enable XFont
-            "X11_NO_XFT": "0",  # Enable Xft
-            "X11_NO_XPM": "0",  # Enable XPM
-            "X11_NO_XSHM": "0",  # Enable XShm
-            "X11_NO_XTST": "0",  # Enable XTst
-            "X11_NO_XVMC": "0",  # Enable XVMC
-            "X11_NO_XVMCLIB": "0",  # Enable XVMCLib
+            "JAVA_TOOL_OPTIONS": "-Djava.awt.headless=false"  # Headless modu kapat
         }
         
         # ULTRA PERFORMANS JVM ARGÜMANLARI (Java 21+ uyumlu + Online Server Support)
@@ -1411,76 +769,13 @@ class MinecraftLauncher:
             "-Dawt.useSystemAAFontSettings=on",
             "-Dswing.aatext=true",
             
-            # X11 Specific Settings (Wayland/Hyprland Fix)
-            "-Dsun.java2d.xrender=true",
-            "-Dsun.java2d.pmoffscreen=false",
-            "-Dsun.java2d.noddraw=true",
-            "-Djava.awt.headless=false",
-            "-Dsun.java2d.accthreshold=0",
-            "-Dsun.java2d.d3d=false",
-            "-Dsun.java2d.ddoffscreen=false",
-            "-Dsun.java2d.gdiblend=false",
-            "-Dsun.java2d.pisces=false",
-            "-Dsun.java2d.xrender=true",
-            
             # LWJGL Native Library Path - Fixed for proper library loading
             f"-Dorg.lwjgl.librarypath={self.launcher_dir / 'libraries' / 'natives' / 'linux' / 'x64'}",
             "-Djava.library.path=" + str(self.launcher_dir / 'libraries' / 'natives' / 'linux' / 'x64'),
             
-            # Minecraft Window Fix (Wayland/Hyprland)
-            "-Dminecraft.client.jar=client.jar",
-            "-Djava.awt.headless=false",
-            "-Dfile.encoding=UTF-8",
-            "-Duser.language=en",
-            "-Duser.country=US",
-            
-            # Window Persistence & Graphics Fix
-            "-Dsun.java2d.opengl=false",
-            "-Dsun.java2d.d3d=false",
-            "-Dsun.java2d.xrender=true",
-            "-Dsun.java2d.pmoffscreen=false",
-            "-Dsun.java2d.noddraw=true",
-            "-Dsun.java2d.ddoffscreen=false",
-            "-Dsun.java2d.gdiblend=false",
-            "-Dsun.java2d.pisces=false",
-            "-Dsun.java2d.accthreshold=0",
-            "-Dsun.java2d.ddoffscreen=false",
-            "-Dsun.java2d.gdiblend=false",
-            "-Dsun.java2d.pmoffscreen=false",
-            "-Dsun.java2d.pisces=false",
-            "-Dsun.java2d.xrender=true",
-            
-            # Window Management & Display
-            "-Djava.awt.Window.locationByPlatform=true",
-            "-Djava.awt.graphicsenv=sun.awt.X11GraphicsEnvironment",
-            "-Dawt.useSystemAAFontSettings=on",
-            "-Dswing.aatext=true",
-            "-Djava.awt.syncLWRequests=true",
-            "-Djava.awt.keepWorkingSetOnMinimize=true",
-            "-Djava.awt.Window.locationByPlatform=true",
-            "-Djava.awt.smartInvalidate=true",
-            "-Djava.awt.doublebuffered=true",
-            "-Djava.awt.headless=false",
-            "-Djava.awt.graphicsenv=sun.awt.X11GraphicsEnvironment",
-            "-Djava.awt.Window.locationByPlatform=true",
-            "-Djava.awt.syncLWRequests=true",
-            "-Djava.awt.keepWorkingSetOnMinimize=true",
-            "-Djava.awt.smartInvalidate=true",
-            "-Djava.awt.doublebuffered=true",
-            
-            # LWJGL Display Fixes
-            "-Dorg.lwjgl.util.Debug=false",
-            "-Dorg.lwjgl.util.DebugLoader=false",
-            "-Dorg.lwjgl.opengl.Display.allowSoftwareOpenGL=false",
-            "-Dorg.lwjgl.opengl.Display.swapInterval=0",
-            "-Dorg.lwjgl.opengl.Display.allowSoftwareOpenGL=false",
-            "-Dorg.lwjgl.opengl.Display.swapInterval=0",
-            "-Dorg.lwjgl.opengl.Display.allowSoftwareOpenGL=false",
-            "-Dorg.lwjgl.opengl.Display.swapInterval=0",
-            
             # Minecraft Özel Optimizasyonlar + Online Server Support
             "-Dminecraft.launcher.brand=berke-ultra-launcher",
-            "-Dminecraft.launcher.version=2.4.0",
+            "-Dminecraft.launcher.version=2.3.0",
             "-Dfml.ignoreInvalidMinecraftCertificates=true",
             "-Dfml.ignorePatchDiscrepancies=true",
             "-Dfile.encoding=UTF-8",
@@ -1681,39 +976,21 @@ class MinecraftLauncher:
         try:
             self.console.print(f"[yellow]🚀 Minecraft başlatılıyor: {version_id}[/yellow]")
             
-            # Minecraft sürümü için uygun Java kontrolü
-            recommended_java = self._get_recommended_java_for_version(version_id)
-            current_java = self._check_java_version()
-            
-            if recommended_java and current_java:
-                try:
-                    current_major = int(current_java.split('.')[0])
-                    recommended_major = int(recommended_java["version"].split('.')[0])
-                    
-                    if current_major < recommended_major:
-                        self.console.print(f"[red]⚠️ Java Uyumsuzluğu![/red]")
-                        self.console.print(f"[yellow]Mevcut Java: {current_java}[/yellow]")
-                        self.console.print(f"[cyan]Önerilen Java: {recommended_java['version']} ({recommended_java['name']})[/cyan]")
-                        if Confirm.ask("Önerilen Java'ya geçmek ister misiniz?", default=True):
-                            self.java_executable = recommended_java["path"]
-                            self.config["java_path"] = recommended_java["path"]
-                            self._save_config()
-                            self.console.print(f"[green]✅ Java değiştirildi: {recommended_java['name']}[/green]")
-                        else:
-                            self.console.print(f"[yellow]⚠️ Uyumsuz Java ile devam ediliyor...[/yellow]")
-                    elif current_major > recommended_major + 2:
-                        self.console.print(f"[yellow]💡 Daha uygun Java mevcut: {recommended_java['version']}[/yellow]")
-                        if Confirm.ask("Daha uygun Java'ya geçmek ister misiniz?", default=False):
-                            self.java_executable = recommended_java["path"]
-                            self.config["java_path"] = recommended_java["path"]
-                            self._save_config()
-                            self.console.print(f"[green]✅ Java değiştirildi: {recommended_java['name']}[/green]")
-                    else:
-                        self.console.print(f"[green]✅ Java sürümü uygun: {current_java}[/green]")
-                except ValueError:
-                    self.console.print(f"[green]✅ Java sürümü: {current_java}[/green]")
-            else:
-                self.console.print(f"[green]✅ Java sürümü: {current_java or 'Bulunamadı'}[/green]")
+            # Java sürüm kontrolü
+            java_version = self._check_java_version()
+            if java_version and java_version < 17:
+                self.console.print(f"[red]⚠️ Java Sürüm Uyarısı![/red]")
+                self.console.print(f"[yellow]Mevcut Java sürümü: {java_version}[/yellow]")
+                self.console.print(f"[yellow]Minecraft için Java 17+ gerekli![/yellow]")
+                self.console.print(f"[cyan]Çözüm: sudo pacman -S jdk17-openjdk[/cyan]")
+            elif java_version and java_version > 21:
+                self.console.print(f"[yellow]⚠️ Java Sürüm Uyarısı![/yellow]")
+                self.console.print(f"[yellow]Mevcut Java sürümü: {java_version} (Beta)[/yellow]")
+                self.console.print(f"[yellow]Minecraft için Java 17-21 önerilir![/yellow]")
+                self.console.print(f"[cyan]Çözüm: sudo pacman -S jdk17-openjdk[/cyan]")
+                
+                if not Confirm.ask("Yine de devam etmek istiyor musunuz?"):
+                    return
             
             # Önce sistem kontrolü yap
             self._pre_launch_check()
@@ -1911,329 +1188,7 @@ class MinecraftLauncher:
         monitor_thread.start()
     
     def _show_detailed_error(self, stdout, stderr, command, env):
-        """Gelişmiş hata yönetimi sistemi"""
-        self._show_fullscreen_error_menu(stdout, stderr, command, env)
-    
-    def _show_fullscreen_error_menu(self, stdout, stderr, command, env):
-        """Tam ekran hata yönetimi menüsü"""
-        while True:
-            os.system('clear')
-            
-            # Hata mesajlarını analiz et
-            if isinstance(stderr, bytes):
-                error_lines = stderr.decode('utf-8', errors='ignore').split('\n')
-            else:
-                error_lines = str(stderr).split('\n')
-            
-            # Hata analizi
-            detected_errors = self._analyze_errors(error_lines)
-            
-            self.console.print(Panel(
-                "[bold red]❌ MINECRAFT BAŞLATMA HATASI[/bold red]\n"
-                "[dim]Detaylı hata analizi ve çözüm önerileri[/dim]",
-                border_style="red",
-                padding=(1, 2)
-            ))
-            
-            self.console.print()
-            
-            # Tespit edilen hatalar
-            if detected_errors:
-                self.console.print("[bold red]🔍 Tespit Edilen Hatalar:[/bold red]")
-                for error in detected_errors:
-                    self.console.print(f"  • {error}")
-                self.console.print()
-            
-            # Komut bilgileri
-            self.console.print("[bold yellow]📋 Çalıştırılan Komut:[/bold yellow]")
-            self.console.print(f"[dim]{' '.join(command[:5])}...[/dim]")
-            self.console.print()
-            
-            # Environment değişkenleri
-            self.console.print("[bold yellow]🌍 Environment Değişkenleri:[/bold yellow]")
-            important_env = ["JAVA_HOME", "DISPLAY", "WAYLAND_DISPLAY", "GDK_BACKEND", "QT_QPA_PLATFORM"]
-            for key in important_env:
-                if key in env:
-                    self.console.print(f"[dim]{key}={env[key]}[/dim]")
-            self.console.print()
-            
-            # Stderr özeti
-            self.console.print("[bold yellow]📤 Hata Detayları:[/bold yellow]")
-            for line in error_lines[:10]:  # İlk 10 satır
-                if line.strip():
-                    self.console.print(f"[dim]{line}[/dim]")
-            if len(error_lines) > 10:
-                self.console.print("[dim]... ve daha fazlası[/dim]")
-            self.console.print()
-            
-            # Çözüm önerileri
-            solutions = self._get_error_solutions(detected_errors)
-            if solutions:
-                self.console.print("[bold green]💡 Sorun Giderme İpuçları:[/bold green]")
-                for i, solution in enumerate(solutions, 1):
-                    self.console.print(f"  {i}. {solution}")
-                self.console.print()
-            
-            # Menü seçenekleri
-            self.console.print("[bold cyan]🔧 Hata Yönetimi:[/bold cyan]")
-            self.console.print("  [cyan]1[/cyan]  Otomatik Düzeltme Dene")
-            self.console.print("  [cyan]2[/cyan]  Java Ayarlarını Aç")
-            self.console.print("  [cyan]3[/cyan]  Sistem Testi Çalıştır")
-            self.console.print("  [cyan]4[/cyan]  Debug Modunu Aç")
-            self.console.print("  [cyan]5[/cyan]  Hata Logunu Kaydet")
-            self.console.print("  [cyan]6[/cyan]  Tam Hata Raporunu Göster")
-            self.console.print()
-            self.console.print("  [dim]0[/dim]  Ana Menüye Dön")
-            
-            choice = Prompt.ask("\n[cyan]>[/cyan]", choices=["0", "1", "2", "3", "4", "5", "6"])
-            
-            if choice == "0":
-                break
-            elif choice == "1":
-                self._try_auto_fix(detected_errors)
-            elif choice == "2":
-                self._show_java_management_menu()
-            elif choice == "3":
-                self._run_system_test()
-            elif choice == "4":
-                self._enable_debug_mode()
-            elif choice == "5":
-                self._save_error_log(stdout, stderr, command, env)
-            elif choice == "6":
-                self._show_full_error_report(stdout, stderr, command, env)
-    
-    def _analyze_errors(self, error_lines):
-        """Hata satırlarını analiz et ve kategorize et"""
-        errors = []
-        
-        for line in error_lines:
-            line_lower = line.lower()
-            
-            # Java sürüm hataları
-            if "unsupportedclassversionerror" in line_lower:
-                errors.append("🚫 Java Sürüm Uyumsuzluğu: Minecraft Java 21+ gerektiriyor")
-            elif "could not create the java virtual machine" in line_lower:
-                errors.append("🚫 Java Virtual Machine oluşturulamadı")
-            elif "linkageerror" in line_lower:
-                errors.append("🔗 Java Sınıf Bağlantı Hatası")
-            
-            # LWJGL hataları
-            elif "lwjgl" in line_lower and "failed to load" in line_lower:
-                errors.append("📦 LWJGL Native Library Hatası")
-            elif "liblwjgl.so" in line_lower:
-                errors.append("📦 LWJGL Native Library Bulunamadı")
-            
-            # SSL hataları
-            elif "ssl" in line_lower and "handshake" in line_lower:
-                errors.append("🔒 SSL Sertifika Hatası")
-            elif "certificate" in line_lower:
-                errors.append("🔒 Sertifika Doğrulama Hatası")
-            
-            # Bellek hataları
-            elif "outofmemoryerror" in line_lower:
-                errors.append("💾 Bellek Yetersizliği")
-            elif "heap space" in line_lower:
-                errors.append("💾 Heap Space Hatası")
-            
-            # Grafik hataları
-            elif "opengl" in line_lower and "error" in line_lower:
-                errors.append("🖥️ OpenGL Hatası")
-            elif "graphics" in line_lower and "error" in line_lower:
-                errors.append("🖥️ Grafik Sürücü Hatası")
-            
-            # Asset hataları
-            elif "asset" in line_lower and "not found" in line_lower:
-                errors.append("📁 Asset Dosyası Bulunamadı")
-            
-            # Network hataları
-            elif "connection" in line_lower and "refused" in line_lower:
-                errors.append("🌐 Bağlantı Reddedildi")
-            elif "timeout" in line_lower:
-                errors.append("⏱️ Bağlantı Zaman Aşımı")
-        
-        return list(set(errors))  # Duplicate'leri kaldır
-    
-    def _get_error_solutions(self, errors):
-        """Hatalar için çözüm önerileri"""
-        solutions = []
-        
-        for error in errors:
-            if "Java Sürüm Uyumsuzluğu" in error:
-                solutions.append("Java 21+ kurun: sudo pacman -S jdk21-openjdk")
-                solutions.append("Java sürümünü değiştirin: Ayarlar > Java Yönetimi")
-            elif "LWJGL" in error:
-                solutions.append("Native library'leri çıkarın: ./fix_native_libraries.sh")
-                solutions.append("LWJGL cache'ini temizleyin")
-            elif "SSL" in error or "Sertifika" in error:
-                solutions.append("SSL sertifika cache'ini temizleyin")
-                solutions.append("Network ayarlarını kontrol edin")
-            elif "Bellek" in error:
-                solutions.append("Bellek ayarını artırın: Ayarlar > Bellek")
-                solutions.append("Diğer uygulamaları kapatın")
-            elif "OpenGL" in error or "Grafik" in error:
-                solutions.append("Grafik sürücülerini güncelleyin")
-                solutions.append("XWayland'i kontrol edin: sudo pacman -S xorg-server-xwayland")
-            elif "Asset" in error:
-                solutions.append("Minecraft cache'ini temizleyin")
-                solutions.append("Sürümü yeniden indirin")
-        
-        # Genel çözümler
-        if not solutions:
-            solutions = [
-                "Java'yı kontrol edin: java -version",
-                "Java 21+ kurun: sudo pacman -S jdk21-openjdk",
-                "XWayland'i yükleyin: sudo pacman -S xorg-server-xwayland",
-                "Environment değişkenlerini ayarlayın",
-                "Debug modunu açın (Ayarlar > Debug Modu)",
-                "Hızlı başlatmayı kapatın (Ayarlar > Hızlı Başlatma)",
-                "Sistem testini çalıştırın (Ayarlar > Sistem Testi)",
-                "Minecraft dizinini kontrol edin (Ayarlar > Minecraft Dizini)"
-            ]
-        
-        return solutions[:8]  # Maksimum 8 çözüm
-    
-    def _try_auto_fix(self, errors):
-        """Otomatik düzeltme dene"""
-        self.console.print("\n[bold blue]🔧 Otomatik Düzeltme Başlatılıyor...[/bold blue]")
-        
-        fixes_applied = []
-        
-        for error in errors:
-            if "Java Sürüm Uyumsuzluğu" in error:
-                self.console.print("[yellow]Java sürümü kontrol ediliyor...[/yellow]")
-                # Java sürüm kontrolü ve önerisi
-                fixes_applied.append("Java sürüm kontrolü yapıldı")
-            
-            elif "LWJGL" in error:
-                self.console.print("[yellow]LWJGL native library'leri düzeltiliyor...[/yellow]")
-                try:
-                    self._extract_all_native_libraries()
-                    fixes_applied.append("LWJGL native library'leri çıkarıldı")
-                except:
-                    pass
-            
-            elif "Asset" in error:
-                self.console.print("[yellow]Asset cache temizleniyor...[/yellow]")
-                # Asset cache temizleme
-                fixes_applied.append("Asset cache temizlendi")
-        
-        if fixes_applied:
-            self.console.print(f"\n[green]✅ {len(fixes_applied)} düzeltme uygulandı:[/green]")
-            for fix in fixes_applied:
-                self.console.print(f"  • {fix}")
-        else:
-            self.console.print("[yellow]⚠️ Otomatik düzeltme uygulanamadı[/yellow]")
-        
-        input("\n[dim]Enter...[/dim]")
-    
-    def _run_system_test(self):
-        """Sistem testi çalıştır"""
-        self.console.print("\n[bold blue]🔍 Sistem Testi Çalıştırılıyor...[/bold blue]")
-        
-        tests = [
-            ("Java Kontrolü", self._test_java_system),
-            ("LWJGL Kontrolü", self._test_lwjgl_system),
-            ("Grafik Kontrolü", self._test_graphics_system),
-            ("Network Kontrolü", self._test_network_system)
-        ]
-        
-        results = []
-        for test_name, test_func in tests:
-            self.console.print(f"[yellow]{test_name}...[/yellow]")
-            try:
-                result = test_func()
-                results.append((test_name, result))
-                if result:
-                    self.console.print(f"[green]✅ {test_name}: Başarılı[/green]")
-                else:
-                    self.console.print(f"[red]❌ {test_name}: Başarısız[/red]")
-            except Exception as e:
-                results.append((test_name, False))
-                self.console.print(f"[red]❌ {test_name}: Hata - {e}[/red]")
-        
-        self.console.print(f"\n[bold]Test Sonuçları: {sum(r[1] for r in results)}/{len(results)} başarılı[/bold]")
-        input("[dim]Enter...[/dim]")
-    
-    def _test_java_system(self):
-        """Java sistem testi"""
-        return self.java_executable and os.path.exists(self.java_executable)
-    
-    def _test_lwjgl_system(self):
-        """LWJGL sistem testi"""
-        natives_dir = self.launcher_dir / "libraries" / "natives" / "linux" / "x64"
-        return natives_dir.exists() and any(natives_dir.rglob("*.so"))
-    
-    def _test_graphics_system(self):
-        """Grafik sistem testi"""
-        return os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")
-    
-    def _test_network_system(self):
-        """Network sistem testi"""
-        try:
-            import requests
-            response = requests.get("https://www.google.com", timeout=5)
-            return response.status_code == 200
-        except:
-            return False
-    
-    def _enable_debug_mode(self):
-        """Debug modunu aç"""
-        self.config["debug"] = True
-        self._save_config()
-        self.console.print("[green]✅ Debug modu açıldı![/green]")
-        input("[dim]Enter...[/dim]")
-    
-    def _save_error_log(self, stdout, stderr, command, env):
-        """Hata logunu kaydet"""
-        log_dir = self.launcher_dir / "logs"
-        log_dir.mkdir(exist_ok=True)
-        
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_file = log_dir / f"error_{timestamp}.log"
-        
-        with open(log_file, 'w') as f:
-            f.write("=== MINECRAFT LAUNCHER ERROR LOG ===\n")
-            f.write(f"Timestamp: {datetime.datetime.now()}\n\n")
-            f.write("=== COMMAND ===\n")
-            f.write(' '.join(command) + "\n\n")
-            f.write("=== ENVIRONMENT ===\n")
-            for key, value in env.items():
-                f.write(f"{key}={value}\n")
-            f.write("\n=== STDERR ===\n")
-            f.write(str(stderr) + "\n\n")
-            f.write("=== STDOUT ===\n")
-            f.write(str(stdout) + "\n")
-        
-        self.console.print(f"[green]✅ Hata logu kaydedildi: {log_file}[/green]")
-        input("[dim]Enter...[/dim]")
-    
-    def _show_full_error_report(self, stdout, stderr, command, env):
-        """Tam hata raporunu göster"""
-        os.system('clear')
-        
-        self.console.print(Panel(
-            "[bold red]📋 TAM HATA RAPORU[/bold red]",
-            border_style="red"
-        ))
-        
-        self.console.print("\n[bold]Command:[/bold]")
-        self.console.print(' '.join(command))
-        
-        self.console.print("\n[bold]Environment:[/bold]")
-        for key, value in env.items():
-            self.console.print(f"{key}={value}")
-        
-        self.console.print("\n[bold]STDERR:[/bold]")
-        self.console.print(str(stderr))
-        
-        if stdout:
-            self.console.print("\n[bold]STDOUT:[/bold]")
-            self.console.print(str(stdout))
-        
-        input("\n[dim]Enter...[/dim]")
-    
-    def _show_detailed_error_old(self, stdout, stderr, command, env):
-        """Eski detaylı hata mesajı göster (yedek)"""
+        """Detaylı hata mesajı göster"""
         self.console.print("[red]❌ Detaylı Hata Raporu:[/red]")
         
         # Hata mesajlarını analiz et
@@ -2394,199 +1349,43 @@ class MinecraftLauncher:
             
             self.console.print()
             
-            # Gelişmiş menü
-            self.console.print("  [cyan]1[/cyan]  🔍 Skin Ara ve İndir")
-            self.console.print("  [cyan]2[/cyan]  📥 URL'den İndir")
-            self.console.print("  [cyan]3[/cyan]  👤 Kullanıcı Adından İndir")
-            self.console.print("  [cyan]4[/cyan]  📁 Yerel Dosya Yükle")
-            self.console.print("  [cyan]5[/cyan]  🌟 Popüler Skinler")
-            self.console.print("  [cyan]6[/cyan]  📋 Mevcut Skinler")
-            self.console.print("  [cyan]7[/cyan]  🎨 Skin Seç")
-            self.console.print("  [cyan]8[/cyan]  👁️ Skin Önizleme")
-            self.console.print("  [cyan]9[/cyan]  🗑️ Skin Sil")
-            self.console.print("  [cyan]10[/cyan] 💾 Yedekle/Geri Yükle")
+            # Minimal menü
+            self.console.print("  [cyan]1[/cyan]  URL'den Indir")
+            self.console.print("  [cyan]2[/cyan]  Kullanici Adindan Indir")
+            self.console.print("  [cyan]3[/cyan]  Yerel Dosya Yukle")
+            self.console.print("  [cyan]4[/cyan]  Populer Skinler")
+            self.console.print("  [cyan]5[/cyan]  Mevcut Skinler")
+            self.console.print("  [cyan]6[/cyan]  Skin Sec")
+            self.console.print("  [cyan]7[/cyan]  Skin Sil")
+            self.console.print("  [cyan]8[/cyan]  Yedekle/Geri Yukle")
             self.console.print()
             self.console.print("  [dim]0[/dim]  Geri")
             
-            choice = Prompt.ask("\n[cyan]>[/cyan]", choices=["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"])
+            choice = Prompt.ask("\n[cyan]>[/cyan]", choices=["0", "1", "2", "3", "4", "5", "6", "7", "8"])
             
-            if choice == "0":
-                break
-            elif choice == "1":
-                self._search_and_download_skin()
-            elif choice == "2":
+            if choice == "1":
                 url = Prompt.ask("Skin URL'ini girin")
                 name = Prompt.ask("Skin adını girin")
                 self._download_skin_from_url(url, name)
                 input("[dim]Enter...[/dim]")
-            elif choice == "3":
+            elif choice == "2":
                 username = Prompt.ask("Minecraft kullanıcı adını girin")
                 self._download_skin_from_username(username)
                 input("[dim]Enter...[/dim]")
-            elif choice == "4":
+            elif choice == "3":
                 self._upload_local_skin()
-            elif choice == "5":
+            elif choice == "4":
                 self._show_popular_skins()
-            elif choice == "6":
+            elif choice == "5":
                 self._show_available_skins()
-            elif choice == "7":
+            elif choice == "6":
                 self._select_skin()
-            elif choice == "8":
-                self._preview_skin()
-            elif choice == "9":
+            elif choice == "7":
                 self._delete_skin()
-            elif choice == "10":
+            elif choice == "8":
                 self._skin_backup_menu()
-    
-    def _search_and_download_skin(self):
-        """Skin arama ve indirme"""
-        os.system('clear')
-        
-        self.console.print(Panel(
-            "[bold cyan]🔍 SKIN ARAMA[/bold cyan]\n"
-            "[dim]Minecraft skinlerini ara ve indir[/dim]",
-            border_style="cyan",
-            padding=(1, 2)
-        ))
-        
-        search_term = Prompt.ask("[cyan]Aranacak skin adı veya tema (örn: steve, alex, anime)[/cyan]")
-        
-        if not search_term:
-            self.console.print("[red]❌ Arama terimi boş olamaz![/red]")
-            input("[dim]Enter...[/dim]")
-            return
-        
-        self.console.print(f"[blue]🔍 '{search_term}' aranıyor...[/blue]")
-        
-        # Popüler skin önerileri (gerçek veriler yerine örnek)
-        popular_skins = [
-            {"name": "Steve", "description": "Klasik Minecraft karakteri", "category": "default"},
-            {"name": "Alex", "description": "Klasik Minecraft karakteri", "category": "default"},
-            {"name": "Herobrine", "description": "Efsanevi karakter", "category": "mythical"},
-            {"name": "Enderman", "description": "End boyutundan", "category": "mob"},
-            {"name": "Creeper", "description": "Patlayıcı yaratık", "category": "mob"},
-            {"name": "Dragon", "description": "Ejder temalı", "category": "fantasy"},
-            {"name": "Anime Girl", "description": "Anime karakteri", "category": "anime"},
-            {"name": "Superhero", "description": "Süper kahraman", "category": "superhero"}
-        ]
-        
-        # Arama sonuçları
-        search_results = []
-        for skin in popular_skins:
-            if (search_term.lower() in skin["name"].lower() or 
-                search_term.lower() in skin["description"].lower() or
-                search_term.lower() in skin["category"].lower()):
-                search_results.append(skin)
-        
-        if search_results:
-            self.console.print(f"\n[green]✅ {len(search_results)} sonuç bulundu![/green]")
-            
-            for i, skin in enumerate(search_results, 1):
-                self.console.print(f"  [cyan]{i}[/cyan]  {skin['name']:20} [dim]{skin['description']}[/dim]")
-            
-            try:
-                choice = int(Prompt.ask("\n[cyan]İndirilecek skin'i seçin (0 = İptal)[/cyan]"))
-                if choice == 0:
-                    return
-                
-                if 1 <= choice <= len(search_results):
-                    selected_skin = search_results[choice - 1]
-                    self.console.print(f"[blue]📥 {selected_skin['name']} skin'i indiriliyor...[/blue]")
-                    
-                    # Örnek skin indirme (gerçek implementasyon için skin API'si gerekli)
-                    self.console.print(f"[yellow]⚠️ Skin indirme özelliği geliştirilme aşamasında![/yellow]")
-                    self.console.print(f"[dim]Skin: {selected_skin['name']} - {selected_skin['description']}[/dim]")
-                    
-                    if Confirm.ask("Bu skin'i yerel olarak kaydetmek ister misiniz?", default=True):
-                        # Örnek skin kaydetme
-                        skin_path = self.skins_dir / f"{selected_skin['name'].lower().replace(' ', '_')}.png"
-                        self.console.print(f"[green]✅ Skin kaydedildi: {skin_path}[/green]")
-                    
-                    input("[dim]Enter...[/dim]")
-                else:
-                    self.console.print("[red]❌ Geçersiz seçim![/red]")
-                    input("[dim]Enter...[/dim]")
-            except ValueError:
-                self.console.print("[red]❌ Geçersiz giriş![/red]")
-                input("[dim]Enter...[/dim]")
-        else:
-            self.console.print(f"[yellow]⚠️ '{search_term}' için sonuç bulunamadı![/yellow]")
-            self.console.print("[dim]Farklı terimler deneyin: steve, alex, herobrine, enderman[/dim]")
-            input("[dim]Enter...[/dim]")
-    
-    def _preview_skin(self):
-        """Skin önizleme"""
-        os.system('clear')
-        
-        self.console.print(Panel(
-            "[bold cyan]👁️ SKIN ÖNİZLEME[/bold cyan]\n"
-            "[dim]Mevcut skinleri önizle[/dim]",
-            border_style="cyan",
-            padding=(1, 2)
-        ))
-        
-        # Mevcut skinleri listele
-        skin_files = list(self.skins_dir.glob("*.png"))
-        if not skin_files:
-            self.console.print("[yellow]⚠️ Hiç skin bulunamadı![/yellow]")
-            input("[dim]Enter...[/dim]")
-            return
-        
-        self.console.print(f"[green]✅ {len(skin_files)} skin bulundu![/green]")
-        
-        for i, skin_file in enumerate(skin_files, 1):
-            skin_name = skin_file.stem
-            current_marker = " [green]✓[/green]" if skin_name == self.config.get("current_skin", "default") else ""
-            self.console.print(f"  [cyan]{i}[/cyan]  {skin_name}{current_marker}")
-        
-        try:
-            choice = int(Prompt.ask("\n[cyan]Önizlenecek skin'i seçin (0 = İptal)[/cyan]"))
-            if choice == 0:
-                return
-            
-            if 1 <= choice <= len(skin_files):
-                selected_skin = skin_files[choice - 1]
-                skin_name = selected_skin.stem
-                
-                self.console.print(f"\n[blue]👁️ {skin_name} önizlemesi:[/blue]")
-                
-                # ASCII art önizleme (gerçek skin preview için daha gelişmiş sistem gerekli)
-                preview_ascii = f"""
-    ╭─────────────────╮
-    │   {skin_name:^13}   │
-    │                 │
-    │    ░░░░░░░░░    │
-    │   ░░░░░░░░░░░   │
-    │  ░░░░░░░░░░░░░  │
-    │ ░░░░░░░░░░░░░░░ │
-    │░░░░░░░░░░░░░░░░░│
-    │░░░░░░░░░░░░░░░░░│
-    │░░░░░░░░░░░░░░░░░│
-    │ ░░░░░░░░░░░░░░░ │
-    │  ░░░░░░░░░░░░░  │
-    │   ░░░░░░░░░░░   │
-    │    ░░░░░░░░░    │
-    │                 │
-    ╰─────────────────╯
-                """
-                
-                self.console.print(preview_ascii)
-                
-                self.console.print(f"[dim]Skin dosyası: {selected_skin}[/dim]")
-                self.console.print(f"[dim]Boyut: {selected_skin.stat().st_size} bytes[/dim]")
-                
-                if Confirm.ask("Bu skin'i aktif yapmak ister misiniz?", default=False):
-                    self.config["current_skin"] = skin_name
-                    self._save_config()
-                    self.console.print(f"[green]✅ {skin_name} aktif skin olarak ayarlandı![/green]")
-                
-                input("[dim]Enter...[/dim]")
-            else:
-                self.console.print("[red]❌ Geçersiz seçim![/red]")
-                input("[dim]Enter...[/dim]")
-        except ValueError:
-            self.console.print("[red]❌ Geçersiz giriş![/red]")
-            input("[dim]Enter...[/dim]")
+            elif choice == "0":
+                break
     
     def _show_popular_skins(self):
         """Popüler skinler - Gerçek verilerden"""
@@ -2869,7 +1668,8 @@ class MinecraftLauncher:
             self.console.print(f"  [cyan]5[/cyan]  Grafik Opt.          [dim]{'Acik' if self.config['optimize_graphics'] else 'Kapali'}[/dim]")
             self.console.print(f"  [cyan]6[/cyan]  Mod Destegi          [dim]{'Acik' if self.config['enable_mods'] else 'Kapali'}[/dim]")
             self.console.print()
-            self.console.print(f"  [cyan]7[/cyan]  Java Yönetimi")
+            self.console.print(f"  [cyan]7[/cyan]  Java Yolu")
+            self.console.print(f"  [cyan]8[/cyan]  Java Guncelle")
             self.console.print(f"  [cyan]9[/cyan]  Debug Modu           [dim]{'Acik' if self.config.get('debug', False) else 'Kapali'}[/dim]")
             self.console.print()
             self.console.print(f"  [cyan]10[/cyan] Ayarlari Sifirla")
@@ -2927,7 +1727,10 @@ class MinecraftLauncher:
                 self.console.print(f"[green]✅ Mod desteği: {'Açık' if self.config['enable_mods'] else 'Kapalı'}[/green]")
                 input("[dim]Enter...[/dim]")
             elif choice == "7":
-                self._show_java_management_menu()
+                self._configure_java_path()
+            elif choice == "8":
+                # Java otomatik güncelleme
+                self._auto_update_java()
             elif choice == "9":
                 self.config["debug"] = not self.config.get("debug", False)
                 self._save_config()
@@ -3238,7 +2041,7 @@ class MinecraftLauncher:
         input("[dim]Enter...[/dim]")
     
     def _show_mod_menu(self):
-        """Gelişmiş mod yönetimi menüsü"""
+        """Mod menüsünü göster - MINIMAL"""
         while True:
             os.system('clear')
             
@@ -3248,504 +2051,55 @@ class MinecraftLauncher:
             
             # Yüklü modları say
             installed_mods = list(mods_dir.glob("*.jar"))
+            mod_count = len(installed_mods)
             
-            # Mod uyumlu sürümleri kontrol et
-            compatible_versions = self._get_mod_compatible_versions()
-            
+            # Banner
             self.console.print(Panel(
-                f"[bold green]🔧 MOD YÖNETİMİ[/bold green]\n"
-                f"[dim]Yüklü modlar: {len(installed_mods)}[/dim]",
-                border_style="green",
+                f"[bold cyan]MOD YONETIMI[/bold cyan]\n"
+                f"[white]Yuklu: {mod_count} mod[/white]\n"
+                f"[dim]Modrinth API[/dim]",
+                border_style="cyan",
                 padding=(1, 2)
             ))
             
             self.console.print()
             
-            # Mod uyumlu sürümler
-            if compatible_versions:
-                self.console.print("[bold]Mod Uyumlu Sürümler:[/bold]")
-                for version in compatible_versions[:5]:  # İlk 5 tanesini göster
-                    forge_status = "🔧" if version.get("forge") else "  "
-                    fabric_status = "🧵" if version.get("fabric") else "  "
-                    self.console.print(f"  {forge_status}{fabric_status} {version['id']}")
-                if len(compatible_versions) > 5:
-                    self.console.print(f"  [dim]... ve {len(compatible_versions)-5} tane daha[/dim]")
-            else:
-                self.console.print("[yellow]⚠️ Mod uyumlu sürüm bulunamadı[/yellow]")
+            # Minimal liste
+            table = Table(show_header=False, box=None, padding=(0, 2), expand=True)
+            table.add_column("", style="bold cyan", width=3, justify="center")
+            table.add_column("", style="white", width=25)
+            table.add_column("", style="dim", width=30)
             
-            self.console.print()
+            table.add_row("[bold cyan]1[/bold cyan]", "[green]Mod Ara[/green]", "[dim]Modrinth'ten indir[/dim]")
+            table.add_row("[bold cyan]2[/bold cyan]", "[green]Yuklu Modlar[/green]", f"[dim]{mod_count} adet[/dim]")
+            table.add_row("[bold cyan]3[/bold cyan]", "[blue]Yerel Mod Yukle[/blue]", "[dim]Dosyadan ekle[/dim]")
+            table.add_row("[bold cyan]4[/bold cyan]", "[red]Mod Sil[/red]", "[dim]Kaldır[/dim]")
+            table.add_row("[bold cyan]5[/bold cyan]", "[yellow]Populer Modlar[/yellow]", "[dim]Top 20[/dim]")
+            table.add_row("", "", "")
+            table.add_row("[bold red]0[/bold red]", "[red]Geri[/red]", "[dim]Ana menu[/dim]")
             
-            # Menü seçenekleri
-            self.console.print("[bold]Seçenekler:[/bold]")
-            self.console.print("  [cyan]1[/cyan]  Mod Ara ve Kur")
-            self.console.print("  [cyan]2[/cyan]  Yüklü Modları Yönet")
-            self.console.print("  [cyan]3[/cyan]  Forge/Fabric Kur")
-            self.console.print("  [cyan]4[/cyan]  Mod Profili Oluştur")
-            self.console.print("  [cyan]5[/cyan]  Mod Uyumluluk Testi")
-            self.console.print()
-            self.console.print("  [dim]0[/dim]  Geri")
+            self.console.print(Panel(
+                table,
+                title="[bold white]═══ MENU ═══[/bold white]",
+                border_style="bright_cyan",
+                padding=(1, 2),
+                expand=False
+            ))
             
-            choice = Prompt.ask("\n[cyan]>[/cyan]", choices=["0", "1", "2", "3", "4", "5"])
+            choice = Prompt.ask("\n[bold cyan]>[/bold cyan]", choices=["0", "1", "2", "3", "4", "5"])
             
             if choice == "0":
                 break
             elif choice == "1":
-                self._search_and_install_mods()
+                self._search_and_download_mod()
             elif choice == "2":
-                self._manage_installed_mods()
+                self._show_installed_mods()
             elif choice == "3":
-                self._install_mod_loader()
+                self._upload_local_mod()
             elif choice == "4":
-                self._create_mod_profile()
+                self._delete_mod()
             elif choice == "5":
-                self._test_mod_compatibility()
-    
-    def _get_version_info(self, version_id: str):
-        """Sürüm bilgilerini JSON'dan getir"""
-        try:
-            version_dir = self.minecraft_dir / "versions" / version_id
-            json_file = version_dir / f"{version_id}.json"
-            if json_file.exists():
-                with open(json_file, 'r') as f:
-                    return json.load(f)
-        except:
-            pass
-        return None
-    
-    def _get_mod_compatible_versions(self):
-        """Mod uyumlu sürümleri getir"""
-        compatible = []
-        
-        # Yüklü sürümleri kontrol et
-        installed_versions = self._get_installed_versions()
-        
-        for version in installed_versions:
-            version_info = self._get_version_info(version)
-            if version_info:
-                # Forge/Fabric desteği kontrolü
-                version_data = {
-                    "id": version,
-                    "forge": False,
-                    "fabric": False
-                }
-                
-                # Forge kontrolü (1.6+)
-                if self._supports_forge(version):
-                    version_data["forge"] = True
-                
-                # Fabric kontrolü (1.14+)
-                if self._supports_fabric(version):
-                    version_data["fabric"] = True
-                
-                if version_data["forge"] or version_data["fabric"]:
-                    compatible.append(version_data)
-        
-        return compatible
-    
-    def _supports_forge(self, version):
-        """Sürümün Forge destekleyip desteklemediğini kontrol et"""
-        try:
-            major_minor = version.split('.')[:2]
-            major = int(major_minor[0])
-            minor = int(major_minor[1]) if len(major_minor) > 1 else 0
-            
-            # Forge 1.6+ destekler
-            return major > 1 or (major == 1 and minor >= 6)
-        except:
-            return False
-    
-    def _supports_fabric(self, version):
-        """Sürümün Fabric destekleyip desteklemediğini kontrol et"""
-        try:
-            major_minor = version.split('.')[:2]
-            major = int(major_minor[0])
-            minor = int(major_minor[1]) if len(major_minor) > 1 else 0
-            
-            # Fabric 1.14+ destekler
-            return major > 1 or (major == 1 and minor >= 14)
-        except:
-            return False
-    
-    def _search_and_install_mods(self):
-        """Mod ara ve kur"""
-        self.console.print("\n[bold]Mod Arama ve Kurulum[/bold]")
-        
-        # Önce sürüm seç
-        compatible_versions = self._get_mod_compatible_versions()
-        if not compatible_versions:
-            self.console.print("[red]❌ Mod uyumlu sürüm bulunamadı![/red]")
-            input("[dim]Enter...[/dim]")
-            return
-        
-        self.console.print("\n[bold]Sürüm seçin:[/bold]")
-        for i, version in enumerate(compatible_versions, 1):
-            forge_text = "Forge" if version["forge"] else ""
-            fabric_text = "Fabric" if version["fabric"] else ""
-            loader_text = f"({forge_text}{'/' if forge_text and fabric_text else ''}{fabric_text})"
-            self.console.print(f"  [cyan]{i}[/cyan]  {version['id']} {loader_text}")
-        
-        try:
-            choice = int(Prompt.ask("\n[cyan]>[/cyan]"))
-            if 1 <= choice <= len(compatible_versions):
-                selected_version = compatible_versions[choice-1]
-                self._install_mod_for_version(selected_version)
-            else:
-                self.console.print("[red]❌ Geçersiz seçim![/red]")
-                input("[dim]Enter...[/dim]")
-        except ValueError:
-            self.console.print("[red]❌ Geçersiz giriş![/red]")
-            input("[dim]Enter...[/dim]")
-    
-    def _install_mod_for_version(self, version):
-        """Belirli bir sürüm için mod kur"""
-        self.console.print(f"\n[bold]Mod Kurulumu: {version['id']}[/bold]")
-        
-        # Mod loader kontrolü
-        if not version["forge"] and not version["fabric"]:
-            self.console.print("[red]❌ Bu sürüm mod loader desteklemiyor![/red]")
-            input("[dim]Enter...[/dim]")
-            return
-        
-        # Mod loader seçimi
-        self.console.print("\n[bold]Mod Loader seçin:[/bold]")
-        if version["forge"]:
-            self.console.print("  [cyan]1[/cyan]  Forge")
-        if version["fabric"]:
-            self.console.print(f"  [cyan]{2 if version['forge'] else 1}[/cyan]  Fabric")
-        
-        loader_choice = Prompt.ask("\n[cyan]>[/cyan]")
-        
-        if loader_choice == "1" and version["forge"]:
-            loader = "forge"
-        elif (loader_choice == "2" and version["forge"] and version["fabric"]) or (loader_choice == "1" and not version["forge"]):
-            loader = "fabric"
-        else:
-            self.console.print("[red]❌ Geçersiz seçim![/red]")
-            input("[dim]Enter...[/dim]")
-            return
-        
-        # Mod arama
-        self.console.print(f"\n[bold]{loader.upper()} Modları Arama[/bold]")
-        mod_query = Prompt.ask("[cyan]Mod adı veya anahtar kelime[/cyan]")
-        
-        # Simüle edilmiş mod arama
-        self.console.print(f"[yellow]'{mod_query}' için {loader} modları aranıyor...[/yellow]")
-        
-        # Örnek modlar
-        example_mods = [
-            {"name": "JEI", "version": "1.18.2-9.7.1.255", "compatibility": "1.18.2", "warning": None},
-            {"name": "OptiFine", "version": "HD_U_H9", "compatibility": "1.18.2", "warning": "Forge ile uyumsuz olabilir"},
-            {"name": "WTHIT", "version": "5.8.2", "compatibility": "1.18.2", "warning": None},
-        ]
-        
-        self.console.print("\n[bold]Bulunan Modlar:[/bold]")
-        for i, mod in enumerate(example_mods, 1):
-            warning_text = f" [red]⚠️ {mod['warning']}[/red]" if mod['warning'] else ""
-            compatibility_text = f" [green]✓[/green]" if mod['compatibility'] == version['id'] else f" [yellow]?[/yellow]"
-            self.console.print(f"  [cyan]{i}[/cyan]  {mod['name']} v{mod['version']}{compatibility_text}{warning_text}")
-        
-        try:
-            mod_choice = int(Prompt.ask("\n[cyan]Mod seçin (0 = İptal)[/cyan]"))
-            if mod_choice == 0:
-                return
-            
-            if 1 <= mod_choice <= len(example_mods):
-                selected_mod = example_mods[mod_choice-1]
-                self._install_selected_mod(selected_mod, version, loader)
-            else:
-                self.console.print("[red]❌ Geçersiz seçim![/red]")
-                input("[dim]Enter...[/dim]")
-        except ValueError:
-            self.console.print("[red]❌ Geçersiz giriş![/red]")
-            input("[dim]Enter...[/dim]")
-    
-    def _install_selected_mod(self, mod, version, loader):
-        """Seçilen modu kur"""
-        # Uyumluluk kontrolü
-        if mod['compatibility'] != version['id']:
-            self.console.print(f"[yellow]⚠️ Uyumsuzluk Uyarısı:[/yellow]")
-            self.console.print(f"Mod: {mod['name']} (v{mod['version']})")
-            self.console.print(f"Desteklenen sürüm: {mod['compatibility']}")
-            self.console.print(f"Seçilen sürüm: {version['id']}")
-            self.console.print()
-            
-            if not Confirm.ask("[yellow]Uyumsuz sürümle kurmaya devam etmek istiyor musunuz?[/yellow]"):
-                return
-        
-        # Mod uyarısı
-        if mod['warning']:
-            self.console.print(f"[red]⚠️ Uyarı: {mod['warning']}[/red]")
-            if not Confirm.ask("[yellow]Bu uyarıyla kurmaya devam etmek istiyor musunuz?[/yellow]"):
-                return
-        
-        # Mod kurulumu simülasyonu
-        self.console.print(f"\n[blue]Mod kuruluyor: {mod['name']} v{mod['version']}[/blue]")
-        self.console.print(f"[dim]Sürüm: {version['id']} ({loader.upper()})[/dim]")
-        
-        # Simüle edilmiş indirme
-        with self.console.status("[bold green]Mod indiriliyor..."):
-            time.sleep(2)
-        
-        # Mod dosyasını oluştur (simülasyon)
-        mods_dir = self.minecraft_dir / "mods"
-        mod_file = mods_dir / f"{mod['name'].lower()}-{mod['version']}.jar"
-        
-        try:
-            # Boş bir jar dosyası oluştur (gerçekte burada mod indirilir)
-            with open(mod_file, 'w') as f:
-                f.write(f"# {mod['name']} v{mod['version']} - Simulated mod file")
-            
-            self.console.print(f"[green]✅ Mod başarıyla kuruldu: {mod['name']}[/green]")
-            self.console.print(f"[dim]Konum: {mod_file}[/dim]")
-            
-        except Exception as e:
-            self.console.print(f"[red]❌ Mod kurulumu başarısız: {e}[/red]")
-        
-        input("[dim]Enter...[/dim]")
-    
-    def _manage_installed_mods(self):
-        """Yüklü modları yönet"""
-        mods_dir = self.minecraft_dir / "mods"
-        mods_dir.mkdir(exist_ok=True)
-        
-        installed_mods = list(mods_dir.glob("*.jar"))
-        
-        if not installed_mods:
-            self.console.print("[yellow]⚠️ Hiç mod kurulu değil[/yellow]")
-            input("[dim]Enter...[/dim]")
-            return
-        
-        while True:
-            os.system('clear')
-            
-            self.console.print(Panel(
-                f"[bold green]🔧 YÜKLÜ MODLAR[/bold green]\n"
-                f"[dim]Toplam: {len(installed_mods)} mod[/dim]",
-                border_style="green",
-                padding=(1, 2)
-            ))
-            
-            self.console.print()
-            
-            # Mod listesi
-            for i, mod_file in enumerate(installed_mods, 1):
-                mod_name = mod_file.stem
-                mod_size = mod_file.stat().st_size / 1024  # KB
-                self.console.print(f"  [cyan]{i:2}[/cyan]  {mod_name:30} {mod_size:6.1f} KB")
-            
-            self.console.print()
-            self.console.print("  [cyan]1[/cyan]  Mod Sil")
-            self.console.print("  [cyan]2[/cyan]  Mod Bilgileri")
-            self.console.print("  [cyan]3[/cyan]  Tüm Modları Temizle")
-            self.console.print()
-            self.console.print("  [dim]0[/dim]  Geri")
-            
-            choice = Prompt.ask("\n[cyan]>[/cyan]", choices=["0", "1", "2", "3"])
-            
-            if choice == "0":
-                break
-            elif choice == "1":
-                self._delete_mod(installed_mods)
-            elif choice == "2":
-                self._show_mod_info(installed_mods)
-            elif choice == "3":
-                self._clear_all_mods()
-    
-    def _delete_mod(self, mods):
-        """Mod sil"""
-        if not mods:
-            return
-        
-        self.console.print("\n[bold]Silinecek modu seçin:[/bold]")
-        for i, mod_file in enumerate(mods, 1):
-            self.console.print(f"  [cyan]{i}[/cyan]  {mod_file.name}")
-        
-        try:
-            choice = int(Prompt.ask("\n[cyan]>[/cyan]"))
-            if 1 <= choice <= len(mods):
-                mod_file = mods[choice-1]
-                if Confirm.ask(f"[red]'{mod_file.name}' modunu silmek istediğinizden emin misiniz?[/red]"):
-                    mod_file.unlink()
-                    self.console.print(f"[green]✅ Mod silindi: {mod_file.name}[/green]")
-                    input("[dim]Enter...[/dim]")
-            else:
-                self.console.print("[red]❌ Geçersiz seçim![/red]")
-                input("[dim]Enter...[/dim]")
-        except ValueError:
-            self.console.print("[red]❌ Geçersiz giriş![/red]")
-            input("[dim]Enter...[/dim]")
-    
-    def _show_mod_info(self, mods):
-        """Mod bilgileri göster"""
-        if not mods:
-            return
-        
-        self.console.print("\n[bold]Mod bilgilerini görmek için mod seçin:[/bold]")
-        for i, mod_file in enumerate(mods, 1):
-            self.console.print(f"  [cyan]{i}[/cyan]  {mod_file.name}")
-        
-        try:
-            choice = int(Prompt.ask("\n[cyan]>[/cyan]"))
-            if 1 <= choice <= len(mods):
-                mod_file = mods[choice-1]
-                self.console.print(f"\n[bold]Mod Bilgileri:[/bold]")
-                self.console.print(f"[green]Dosya:[/green] {mod_file.name}")
-                self.console.print(f"[green]Boyut:[/green] {mod_file.stat().st_size / 1024:.1f} KB")
-                self.console.print(f"[green]Konum:[/green] {mod_file}")
-                input("[dim]Enter...[/dim]")
-            else:
-                self.console.print("[red]❌ Geçersiz seçim![/red]")
-                input("[dim]Enter...[/dim]")
-        except ValueError:
-            self.console.print("[red]❌ Geçersiz giriş![/red]")
-            input("[dim]Enter...[/dim]")
-    
-    def _clear_all_mods(self):
-        """Tüm modları temizle"""
-        if Confirm.ask("[red]Tüm modları silmek istediğinizden emin misiniz?[/red]"):
-            mods_dir = self.minecraft_dir / "mods"
-            mods_dir.mkdir(exist_ok=True)
-            
-            deleted_count = 0
-            for mod_file in mods_dir.glob("*.jar"):
-                try:
-                    mod_file.unlink()
-                    deleted_count += 1
-                except:
-                    pass
-            
-            self.console.print(f"[green]✅ {deleted_count} mod silindi[/green]")
-            input("[dim]Enter...[/dim]")
-    
-    def _install_mod_loader(self):
-        """Mod loader kur"""
-        self.console.print("\n[bold]Mod Loader Kurulumu[/bold]")
-        self.console.print("  [cyan]1[/cyan]  Forge Kur")
-        self.console.print("  [cyan]2[/cyan]  Fabric Kur")
-        self.console.print("  [cyan]3[/cyan]  Quilt Kur")
-        
-        choice = Prompt.ask("\n[cyan]>[/cyan]", choices=["1", "2", "3"])
-        
-        if choice == "1":
-            self._install_forge()
-        elif choice == "2":
-            self._install_fabric()
-        elif choice == "3":
-            self._install_quilt()
-    
-    def _install_forge(self):
-        """Forge kur"""
-        self.console.print("\n[bold]Forge Kurulumu[/bold]")
-        self.console.print("[yellow]⚠️ Forge kurulumu manuel olarak yapılmalıdır[/yellow]")
-        self.console.print("[dim]1. https://files.minecraftforge.net/ adresine gidin[/dim]")
-        self.console.print("[dim]2. İstediğiniz sürümü seçin[/dim]")
-        self.console.print("[dim]3. Installer'ı indirin ve çalıştırın[/dim]")
-        input("[dim]Enter...[/dim]")
-    
-    def _install_fabric(self, mc_version: str):
-        """Fabric otomatik kur - CLIENT"""
-        self.console.print(f"\n[bold cyan]🧵 FABRIC KURULUMU - {mc_version}[/bold cyan]")
-        
-        try:
-            # launcher_profiles.json oluştur (Fabric installer için gerekli)
-            launcher_profiles_path = self.minecraft_dir / "launcher_profiles.json"
-            if not launcher_profiles_path.exists():
-                default_profiles = {
-                    "profiles": {
-                        "default": {
-                            "name": "Default",
-                            "type": "latest-release",
-                            "lastVersionId": "latest-release"
-                        }
-                    },
-                    "selectedProfile": "default",
-                    "clientToken": str(uuid.uuid4()),
-                    "authenticationDatabase": {},
-                    "launcherVersion": {"name": "BerkeMinecraftLauncher", "format": 21}
-                }
-                with open(launcher_profiles_path, 'w') as f:
-                    json.dump(default_profiles, f, indent=2)
-                self.console.print("[dim]✓ launcher_profiles.json oluşturuldu[/dim]")
-            
-            # Fabric loader sürümlerini getir
-            self.console.print("[blue]📡 Fabric sürümleri getiriliyor...[/blue]")
-            
-            loader_resp = requests.get("https://meta.fabricmc.net/v2/versions/loader", timeout=10)
-            loader_resp.raise_for_status()
-            loaders = loader_resp.json()
-            fabric_loader = loaders[0]["version"]
-            self.console.print(f"[green]✓ Fabric Loader: {fabric_loader}[/green]")
-            
-            # Fabric installer
-            installer_resp = requests.get("https://meta.fabricmc.net/v2/versions/installer", timeout=10)
-            installer_resp.raise_for_status()
-            installers = installer_resp.json()
-            fabric_installer_version = installers[0]["version"]
-            self.console.print(f"[green]✓ Fabric Installer: {fabric_installer_version}[/green]")
-            
-            # Installer'ı indir
-            self.console.print(f"\n[blue]📥 Fabric installer indiriliyor...[/blue]")
-            installer_url = f"https://maven.fabricmc.net/net/fabricmc/fabric-installer/{fabric_installer_version}/fabric-installer-{fabric_installer_version}.jar"
-            installer_path = self.cache_dir / f"fabric-installer-{fabric_installer_version}.jar"
-            
-            resp = requests.get(installer_url, timeout=30)
-            resp.raise_for_status()
-            with open(installer_path, 'wb') as f:
-                f.write(resp.content)
-            self.console.print("[green]✓ Fabric installer indirildi[/green]")
-            
-            # Installer'ı çalıştır
-            self.console.print(f"\n[blue]🔧 Fabric kuruluyor (30-60 saniye)...[/blue]")
-            
-            result = subprocess.run([
-                self.java_executable, 
-                "-jar", str(installer_path), 
-                "client", 
-                "-mcversion", mc_version, 
-                "-dir", str(self.minecraft_dir)
-            ], capture_output=True, text=True, cwd=str(self.cache_dir), timeout=120)
-            
-            if result.returncode == 0 or "Successfully installed" in result.stdout:
-                self.console.print("\n[green]✅ Fabric başarıyla kuruldu![/green]")
-                self.console.print(f"[cyan]Profil: fabric-loader-{fabric_loader}-{mc_version}[/cyan]")
-            else:
-                self.console.print("\n[red]❌ Fabric kurulumu başarısız![/red]")
-                if result.stderr:
-                    self.console.print(f"[yellow]STDERR:[/yellow]\n[dim]{result.stderr[:500]}[/dim]")
-                if result.stdout:
-                    self.console.print(f"[yellow]STDOUT:[/yellow]\n[dim]{result.stdout[:500]}[/dim]")
-            
-            # Installer'ı temizle
-            if installer_path.exists():
-                installer_path.unlink()
-            
-        except Exception as e:
-            self.console.print(f"\n[red]❌ Hata: {e}[/red]")
-            self.console.print("\n[yellow]Manuel kurulum:[/yellow]")
-            self.console.print("[dim]https://fabricmc.net/use/installer/[/dim]")
-        
-        input("\n[dim]Enter...[/dim]")
-    
-    def _install_quilt(self):
-        """Quilt kur"""
-        self.console.print("\n[bold]Quilt Kurulumu[/bold]")
-        self.console.print("[yellow]⚠️ Quilt kurulumu manuel olarak yapılmalıdır[/yellow]")
-        self.console.print("[dim]1. https://quiltmc.org/en/install/ adresine gidin[/dim]")
-        self.console.print("[dim]2. Quilt Installer'ı indirin[/dim]")
-        self.console.print("[dim]3. İstediğiniz sürümü seçin ve kurun[/dim]")
-        input("[dim]Enter...[/dim]")
-    
-    def _create_mod_profile(self):
-        """Mod profili oluştur"""
-        self.console.print("\n[bold]Mod Profili Oluşturma[/bold]")
-        self.console.print("[yellow]⚠️ Bu özellik henüz geliştirilmekte[/yellow]")
-        input("[dim]Enter...[/dim]")
-    
-    def _test_mod_compatibility(self):
-        """Mod uyumluluk testi"""
-        self.console.print("\n[bold]Mod Uyumluluk Testi[/bold]")
-        self.console.print("[yellow]⚠️ Bu özellik henüz geliştirilmekte[/yellow]")
-        input("[dim]Enter...[/dim]")
+                self._show_popular_mods()
     
     def _search_and_download_mod(self):
         """Mod ara ve indir - Modrinth API"""
@@ -4522,7 +2876,7 @@ class MinecraftLauncher:
         # Kompakt banner
         self.console.print(Panel(
             "[bold cyan]BERKE MINECRAFT LAUNCHER[/bold cyan]\n"
-            "[white]v2.4.0 - Terminal Edition[/white]\n"
+            "[white]v2.3.0 - Terminal Edition[/white]\n"
             "[dim]Gelistirici: Berke Oruc (2009)[/dim]",
             border_style="cyan",
             padding=(1, 2)
@@ -4546,7 +2900,7 @@ class MinecraftLauncher:
         
         info_table.add_row("Gelistirici", "Berke Oruc", "Surumler", f"{installed_count} adet")
         info_table.add_row("Dogum", "2009", "Java", f"v{java_ver}" if java_ver else "N/A")
-        info_table.add_row("Platform", "Arch Linux", "Launcher", "v2.4.0")
+        info_table.add_row("Platform", "Arch Linux", "Launcher", "v2.3.0")
         
         self.console.print(Panel(info_table, title="[bold white]BILGILER[/bold white]", border_style="cyan", padding=(1, 1)))
         
@@ -4943,30 +3297,10 @@ class MinecraftLauncher:
             input("[dim]Enter...[/dim]")
 
     def _install_forge(self, version_id: str):
-        """Forge yükle - CLIENT kurulumu"""
+        """Forge yükle"""
         self.console.print(f"\n[cyan]Forge yükleniyor: {version_id}[/cyan]")
         
         try:
-            # launcher_profiles.json oluştur (Forge installer için gerekli)
-            launcher_profiles_path = self.minecraft_dir / "launcher_profiles.json"
-            if not launcher_profiles_path.exists():
-                default_profiles = {
-                    "profiles": {
-                        "default": {
-                            "name": "Default",
-                            "type": "latest-release",
-                            "lastVersionId": "latest-release"
-                        }
-                    },
-                    "selectedProfile": "default",
-                    "clientToken": str(uuid.uuid4()),
-                    "authenticationDatabase": {},
-                    "launcherVersion": {"name": "BerkeMinecraftLauncher", "format": 21}
-                }
-                with open(launcher_profiles_path, 'w') as f:
-                    json.dump(default_profiles, f, indent=2)
-                self.console.print("[dim]✓ launcher_profiles.json oluşturuldu[/dim]")
-            
             # Forge installer'ı indir
             forge_url = f"https://maven.minecraftforge.net/net/minecraftforge/forge/{version_id}/forge-{version_id}-installer.jar"
             
@@ -4975,36 +3309,29 @@ class MinecraftLauncher:
             response = requests.get(forge_url, timeout=30)
             response.raise_for_status()
             
-            installer_path = self.cache_dir / f"forge-installer-{version_id}.jar"
+            installer_path = self.versions_dir / f"forge-installer-{version_id}.jar"
             with open(installer_path, 'wb') as f:
                 f.write(response.content)
             
-            # Forge'u yükle (CLIENT mod, headless)
-            self.console.print("[cyan]Forge yükleniyor (1-2 dakika sürebilir)...[/cyan]")
+            # Forge'u yükle
+            self.console.print("[cyan]Forge yükleniyor...[/cyan]")
             
             import subprocess
             result = subprocess.run([
                 self.java_executable,
-                "-Djava.awt.headless=true",  # GUI'siz mod
                 "-jar", str(installer_path),
-                "--installClient",
-                "--installDir", str(self.minecraft_dir)
-            ], capture_output=True, text=True, cwd=str(Path.home()), timeout=300)
+                "--installServer"
+            ], capture_output=True, text=True, cwd=str(self.versions_dir / version_id))
             
             if result.returncode == 0:
                 self.console.print("[green]✅ Forge başarıyla yüklendi![/green]")
-                self.console.print(f"[cyan]Profil: forge-{version_id}[/cyan]")
                 
                 # Installer'ı sil
                 installer_path.unlink(missing_ok=True)
                 
                 input("[dim]Enter...[/dim]")
             else:
-                self.console.print(f"[red]❌ Forge yüklenemedi[/red]")
-                if result.stderr:
-                    self.console.print(f"[yellow]STDERR:[/yellow]\n[dim]{result.stderr[:500]}[/dim]")
-                if result.stdout:
-                    self.console.print(f"[yellow]STDOUT:[/yellow]\n[dim]{result.stdout[:500]}[/dim]")
+                self.console.print(f"[red]❌ Forge yüklenemedi: {result.stderr}[/red]")
                 input("[dim]Enter...[/dim]")
                 
         except Exception as e:
@@ -5577,15 +3904,15 @@ class MinecraftLauncher:
         
         # Banner
         self.console.print(Panel(
-            f"[bold cyan]SÜRÜM YÖNETİMİ[/bold cyan]\n"
-            f"[dim]Yüklü sürümler: {len(versions)}[/dim]",
+            f"[bold cyan]MINECRAFT BASLAT[/bold cyan]\n"
+            f"[dim]Yuklu surumler: {len(versions)}[/dim]",
             border_style="cyan",
             padding=(1, 2)
         ))
         
         self.console.print()
         
-        # Sürüm listesi
+        # Minimal liste
         for i, version in enumerate(versions, 1):
             version_dir = self.versions_dir / version
             jar_file = version_dir / f"{version}.jar"
@@ -5596,988 +3923,28 @@ class MinecraftLauncher:
             else:
                 self.console.print(f"  [cyan]{i}[/cyan]  {version:15}  [red]Eksik[/red]")
         
-        self.console.print()
-        self.console.print("  [cyan]1[/cyan]  Sürüm Başlat")
-        self.console.print("  [cyan]2[/cyan]  Sürüm Yönet")
-        self.console.print("  [cyan]3[/cyan]  Sürüm Sil")
-        self.console.print("  [cyan]4[/cyan]  Sürüm Onar")
-        self.console.print()
-        self.console.print("  [dim]0[/dim]  Geri")
-        
-        choice = Prompt.ask("\n[cyan]>[/cyan]", choices=["0", "1", "2", "3", "4"])
-        
-        if choice == "0":
-            return
-        elif choice == "1":
-            self._select_and_launch_version(versions)
-        elif choice == "2":
-            self._manage_version(versions)
-        elif choice == "3":
-            self._delete_version(versions)
-        elif choice == "4":
-            self._repair_version(versions)
-    
-    def _select_and_launch_version(self, versions):
-        """Sürüm seç ve başlat"""
-        self.console.print("\n[bold]Başlatılacak sürümü seçin:[/bold]")
-        for i, version in enumerate(versions, 1):
-            self.console.print(f"  [cyan]{i}[/cyan]  {version}")
+        self.console.print("\n[dim]0 = Geri | Numara = Baslat[/dim]")
         
         try:
             choice = int(Prompt.ask("\n[cyan]>[/cyan]"))
+            
+            if choice == 0:
+                return
+            
             if 1 <= choice <= len(versions):
-                selected_version = versions[choice - 1]
-                self.console.print(f"[yellow]🚀 Minecraft başlatılıyor: {selected_version}[/yellow]")
-                self._launch_minecraft(selected_version)
-            else:
-                self.console.print("[red]❌ Geçersiz seçim![/red]")
-                input("[dim]Enter...[/dim]")
-        except ValueError:
-            self.console.print("[red]❌ Geçersiz giriş![/red]")
-            input("[dim]Enter...[/dim]")
-    
-    def _manage_version(self, versions):
-        """Sürüm yönetimi"""
-        self.console.print("\n[bold]Yönetilecek sürümü seçin:[/bold]")
-        for i, version in enumerate(versions, 1):
-            self.console.print(f"  [cyan]{i}[/cyan]  {version}")
-        
-        try:
-            choice = int(Prompt.ask("\n[cyan]>[/cyan]"))
-            if 1 <= choice <= len(versions):
-                selected_version = versions[choice - 1]
-                self._show_version_management_menu(selected_version)
-            else:
-                self.console.print("[red]❌ Geçersiz seçim![/red]")
-                input("[dim]Enter...[/dim]")
-        except ValueError:
-            self.console.print("[red]❌ Geçersiz giriş![/red]")
-            input("[dim]Enter...[/dim]")
-    
-    def _show_version_management_menu(self, version_id):
-        """Sürüm yönetimi menüsü"""
-        while True:
-            os.system('clear')
-            
-            self.console.print(Panel(
-                f"[bold green]SÜRÜM YÖNETİMİ: {version_id}[/bold green]\n"
-                f"[dim]Sürüm detayları ve işlemler[/dim]",
-                border_style="green",
-                padding=(1, 2)
-            ))
-            
-            # Sürüm bilgileri
-            version_dir = self.versions_dir / version_id
-            jar_file = version_dir / f"{version_id}.jar"
-            size_mb = round(jar_file.stat().st_size / (1024*1024), 1) if jar_file.exists() else 0
-            
-            self.console.print()
-            self.console.print(f"[bold]Sürüm Bilgileri:[/bold]")
-            self.console.print(f"[green]ID:[/green] {version_id}")
-            self.console.print(f"[green]Boyut:[/green] {size_mb} MB")
-            self.console.print(f"[green]Konum:[/green] {version_dir}")
-            
-            self.console.print()
-            self.console.print("[bold]Seçenekler:[/bold]")
-            self.console.print("  [cyan]1[/cyan]  Sürümü Başlat")
-            self.console.print("  [cyan]2[/cyan]  Sürümü Onar")
-            self.console.print("  [cyan]3[/cyan]  Sürümü Sil")
-            self.console.print("  [cyan]4[/cyan]  Sürüm Verilerini Sıfırla")
-            self.console.print("  [cyan]5[/cyan]  Sürüm Bilgileri")
-            self.console.print()
-            self.console.print("  [dim]0[/dim]  Geri")
-            
-            choice = Prompt.ask("\n[cyan]>[/cyan]", choices=["0", "1", "2", "3", "4", "5"])
-            
-            if choice == "0":
-                break
-            elif choice == "1":
-                self.console.print(f"[yellow]🚀 Minecraft başlatılıyor: {version_id}[/yellow]")
+                version_id = versions[choice-1]
+                
+                # Direkt başlat
                 self._launch_minecraft(version_id)
-                break
-            elif choice == "2":
-                self._repair_single_version(version_id)
-            elif choice == "3":
-                if self._confirm_delete_version(version_id):
-                    self._delete_single_version(version_id)
-                    break
-            elif choice == "4":
-                self._reset_version_data(version_id)
-            elif choice == "5":
-                self._show_version_info(version_id)
-    
-    def _delete_version(self, versions):
-        """Sürüm sil"""
-        self.console.print("\n[bold]Silinecek sürümü seçin:[/bold]")
-        for i, version in enumerate(versions, 1):
-            self.console.print(f"  [cyan]{i}[/cyan]  {version}")
-        
-        try:
-            choice = int(Prompt.ask("\n[cyan]>[/cyan]"))
-            if 1 <= choice <= len(versions):
-                selected_version = versions[choice - 1]
-                if self._confirm_delete_version(selected_version):
-                    self._delete_single_version(selected_version)
             else:
-                self.console.print("[red]❌ Geçersiz seçim![/red]")
+                self.console.print("\n[red]Gecersiz secim![/red]\n")
                 input("[dim]Enter...[/dim]")
         except ValueError:
-            self.console.print("[red]❌ Geçersiz giriş![/red]")
+            self.console.print("\n[red]Gecersiz giris![/red]\n")
             input("[dim]Enter...[/dim]")
-    
-    def _confirm_delete_version(self, version_id):
-        """Sürüm silme onayı"""
-        return Confirm.ask(f"[red]'{version_id}' sürümünü silmek istediğinizden emin misiniz?[/red]")
-    
-    def _delete_single_version(self, version_id):
-        """Tek sürümü sil"""
-        version_dir = self.versions_dir / version_id
-        
-        try:
-            if version_dir.exists():
-                import shutil
-                shutil.rmtree(version_dir)
-                self.console.print(f"[green]✅ {version_id} sürümü başarıyla silindi![/green]")
-            else:
-                self.console.print(f"[yellow]⚠️ {version_id} sürüm dizini bulunamadı![/yellow]")
-        except Exception as e:
-            self.console.print(f"[red]❌ {version_id} sürümü silinirken hata: {e}[/red]")
-        
-        input("[dim]Enter...[/dim]")
-    
-    def _repair_version(self, versions):
-        """Sürüm onar"""
-        self.console.print("\n[bold]Onarılacak sürümü seçin:[/bold]")
-        for i, version in enumerate(versions, 1):
-            self.console.print(f"  [cyan]{i}[/cyan]  {version}")
-        
-        try:
-            choice = int(Prompt.ask("\n[cyan]>[/cyan]"))
-            if 1 <= choice <= len(versions):
-                selected_version = versions[choice - 1]
-                self._repair_single_version(selected_version)
-            else:
-                self.console.print("[red]❌ Geçersiz seçim![/red]")
-                input("[dim]Enter...[/dim]")
-        except ValueError:
-            self.console.print("[red]❌ Geçersiz giriş![/red]")
-            input("[dim]Enter...[/dim]")
-    
-    def _repair_single_version(self, version_id):
-        """Tek sürümü onar"""
-        self.console.print(f"\n[blue]🔧 {version_id} sürümü onarılıyor...[/blue]")
-        
-        version_dir = self.versions_dir / version_id
-        version_json_path = version_dir / f"{version_id}.json"
-        
-        if not version_json_path.exists():
-            self.console.print(f"[red]❌ {version_id} sürüm JSON'u bulunamadı![/red]")
-            input("[dim]Enter...[/dim]")
-            return
-        
-        try:
-            # Sürümü yeniden indir
-            self.console.print("[yellow]📥 Sürüm dosyaları kontrol ediliyor...[/yellow]")
-            self._download_version(version_id)
-            
-            # Native library'leri kontrol et
-            self.console.print("[yellow]📦 Native library'ler kontrol ediliyor...[/yellow]")
-            self._extract_all_native_libraries()
-            
-            # Asset'leri kontrol et
-            self.console.print("[yellow]🎨 Asset'ler kontrol ediliyor...[/yellow]")
-            # Asset kontrolü burada yapılabilir
-            
-            self.console.print(f"[green]✅ {version_id} sürümü başarıyla onarıldı![/green]")
-            
-        except Exception as e:
-            self.console.print(f"[red]❌ {version_id} sürümü onarılırken hata: {e}[/red]")
-        
-        input("[dim]Enter...[/dim]")
-    
-    def _reset_version_data(self, version_id):
-        """Sürüm verilerini sıfırla"""
-        if Confirm.ask(f"[yellow]'{version_id}' sürümünün verilerini sıfırlamak istediğinizden emin misiniz?[/yellow]"):
-            try:
-                # Minecraft dizinindeki sürüm klasörünü sil
-                minecraft_version_dir = self.minecraft_dir / "versions" / version_id
-                if minecraft_version_dir.exists():
-                    import shutil
-                    shutil.rmtree(minecraft_version_dir)
-                
-                # Saves, logs, options.txt gibi dosyaları sil
-                saves_dir = self.minecraft_dir / "saves"
-                logs_dir = self.minecraft_dir / "logs"
-                options_file = self.minecraft_dir / "options.txt"
-                
-                if saves_dir.exists():
-                    shutil.rmtree(saves_dir)
-                if logs_dir.exists():
-                    shutil.rmtree(logs_dir)
-                if options_file.exists():
-                    options_file.unlink()
-                
-                self.console.print(f"[green]✅ {version_id} sürüm verileri sıfırlandı![/green]")
-                
-            except Exception as e:
-                self.console.print(f"[red]❌ Veri sıfırlama hatası: {e}[/red]")
-        
-        input("[dim]Enter...[/dim]")
-    
-    def _show_version_info(self, version_id):
-        """Sürüm bilgileri göster"""
-        version_dir = self.versions_dir / version_id
-        version_json_path = version_dir / f"{version_id}.json"
-        
-        if version_json_path.exists():
-            try:
-                with open(version_json_path, 'r') as f:
-                    version_data = json.load(f)
-                
-                self.console.print(f"\n[bold]{version_id} Sürüm Bilgileri:[/bold]")
-                self.console.print(f"[green]ID:[/green] {version_data.get('id', 'N/A')}")
-                self.console.print(f"[green]Tip:[/green] {version_data.get('type', 'N/A')}")
-                self.console.print(f"[green]Ana Sınıf:[/green] {version_data.get('mainClass', 'N/A')}")
-                
-                if 'libraries' in version_data:
-                    self.console.print(f"[green]Kütüphaneler:[/green] {len(version_data['libraries'])} adet")
-                
-                jar_file = version_dir / f"{version_id}.jar"
-                size_mb = round(jar_file.stat().st_size / (1024*1024), 1) if jar_file.exists() else 0
-                self.console.print(f"[green]Boyut:[/green] {size_mb} MB")
-                
-            except Exception as e:
-                self.console.print(f"[red]❌ Sürüm bilgileri okunamadı: {e}[/red]")
-        else:
-            self.console.print(f"[red]❌ {version_id} sürüm JSON'u bulunamadı![/red]")
-        
-        input("[dim]Enter...[/dim]")
-    
-    def _show_launch_versions(self):
-        """Sadece başlatma için sürüm listesi"""
-        os.system('clear')
-        
-        versions = self._get_installed_versions()
-        
-        if not versions:
-            self.console.print(Panel(
-                "[yellow]Henüz sürüm indirilmemiş![/yellow]\n"
-                "[dim]Önce bir sürüm indirmeniz gerekiyor.[/dim]",
-                border_style="yellow",
-                padding=(1, 2)
-            ))
-            
-            if Confirm.ask("\nSürüm indirmek ister misiniz?"):
-                self._show_versions_menu()
-            return
-        
-        # Banner
-        self.console.print(Panel(
-            f"[bold cyan]MINECRAFT BAŞLAT[/bold cyan]\n"
-            f"[dim]Yüklü sürümler: {len(versions)}[/dim]",
-            border_style="cyan",
-            padding=(1, 2)
-        ))
-        
-        self.console.print()
-        
-        # Sadece sürüm listesi
-        for i, version in enumerate(versions, 1):
-            version_dir = self.versions_dir / version
-            jar_file = version_dir / f"{version}.jar"
-            
-            if jar_file.exists():
-                size_mb = round(jar_file.stat().st_size / (1024*1024), 1)
-                self.console.print(f"  [cyan]{i}[/cyan]  {version:15}  [dim]{size_mb:.0f} MB[/dim]")
-            else:
-                self.console.print(f"  [cyan]{i}[/cyan]  {version:15}  [red]Eksik[/red]")
-        
-        self.console.print("\n[dim]0 = Geri | Numara = Başlat[/dim]")
-        
-        try:
-            choice = int(Prompt.ask("\n[cyan]>[/cyan]"))
-            
-            if choice == 0:
-                return
-            
-            if 1 <= choice <= len(versions):
-                selected_version = versions[choice - 1]
-                self.console.print(f"[yellow]🚀 Minecraft başlatılıyor: {selected_version}[/yellow]")
-                self._launch_minecraft(selected_version)
-            else:
-                self.console.print("[red]❌ Geçersiz seçim![/red]")
-                input("[dim]Enter...[/dim]")
-        except ValueError:
-            self.console.print("[red]❌ Geçersiz giriş![/red]")
-            input("[dim]Enter...[/dim]")
-    
-    def _show_version_management(self):
-        """Sürüm yönetimi - sürüm seç, sonra ne yapmak istediğini sor"""
-        os.system('clear')
-        
-        versions = self._get_installed_versions()
-        
-        if not versions:
-            self.console.print(Panel(
-                "[yellow]Henüz sürüm indirilmemiş![/yellow]\n"
-                "[dim]Önce bir sürüm indirmeniz gerekiyor.[/dim]",
-                border_style="yellow",
-                padding=(1, 2)
-            ))
-            
-            if Confirm.ask("\nSürüm indirmek ister misiniz?"):
-                self._show_versions_menu()
-            return
-        
-        # Banner
-        self.console.print(Panel(
-            f"[bold cyan]SÜRÜM YÖNETİMİ[/bold cyan]\n"
-            f"[dim]Yüklü sürümler: {len(versions)}[/dim]",
-            border_style="cyan",
-            padding=(1, 2)
-        ))
-        
-        self.console.print()
-        
-        # Sürüm listesi
-        for i, version in enumerate(versions, 1):
-            version_dir = self.versions_dir / version
-            jar_file = version_dir / f"{version}.jar"
-            
-            if jar_file.exists():
-                size_mb = round(jar_file.stat().st_size / (1024*1024), 1)
-                self.console.print(f"  [cyan]{i}[/cyan]  {version:15}  [dim]{size_mb:.0f} MB[/dim]")
-            else:
-                self.console.print(f"  [cyan]{i}[/cyan]  {version:15}  [red]Eksik[/red]")
-        
-        self.console.print("\n[dim]0 = Geri[/dim]")
-        
-        try:
-            choice = int(Prompt.ask("\n[cyan]Yönetilecek sürümü seçin:[/cyan]"))
-            
-            if choice == 0:
-                return
-            
-            if 1 <= choice <= len(versions):
-                selected_version = versions[choice - 1]
-                self._ask_version_action(selected_version)
-            else:
-                self.console.print("[red]❌ Geçersiz seçim![/red]")
-                input("[dim]Enter...[/dim]")
-        except ValueError:
-            self.console.print("[red]❌ Geçersiz giriş![/red]")
-            input("[dim]Enter...[/dim]")
-    
-    def _ask_version_action(self, version_id):
-        """Seçilen sürüm için ne yapmak istediğini sor"""
-        while True:
-            os.system('clear')
-            
-            self.console.print(Panel(
-                f"[bold green]SÜRÜM: {version_id}[/bold green]\n"
-                f"[dim]Bu sürüm ile ne yapmak istiyorsunuz?[/dim]",
-                border_style="green",
-                padding=(1, 2)
-            ))
-            
-            self.console.print()
-            self.console.print("[bold]Seçenekler:[/bold]")
-            self.console.print("  [cyan]1[/cyan]  🚀 Sürümü Başlat")
-            self.console.print("  [cyan]2[/cyan]  🔧 Sürümü Onar")
-            self.console.print("  [cyan]3[/cyan]  🗑️ Sürümü Sil")
-            self.console.print("  [cyan]4[/cyan]  🔄 Sürüm Verilerini Sıfırla")
-            self.console.print("  [cyan]5[/cyan]  ℹ️ Sürüm Bilgileri")
-            self.console.print()
-            self.console.print("  [dim]0[/dim]  Geri")
-            
-            choice = Prompt.ask("\n[cyan]>[/cyan]", choices=["0", "1", "2", "3", "4", "5"])
-            
-            if choice == "0":
-                break
-            elif choice == "1":
-                self.console.print(f"[yellow]🚀 Minecraft başlatılıyor: {version_id}[/yellow]")
-                self._launch_minecraft(version_id)
-                break
-            elif choice == "2":
-                self._repair_single_version(version_id)
-            elif choice == "3":
-                if self._confirm_delete_version(version_id):
-                    self._delete_single_version(version_id)
-                    break
-            elif choice == "4":
-                self._reset_version_data(version_id)
-            elif choice == "5":
-                self._show_version_info(version_id)
-    
-    def _show_advanced_download_menu(self):
-        """Gelişmiş sürüm indirme menüsü"""
-        while True:
-            os.system('clear')
-            
-            self.console.print(Panel(
-                "[bold cyan]SÜRÜM İNDİR[/bold cyan]\n"
-                "[dim]Minecraft sürümlerini indir ve yönet[/dim]",
-                border_style="cyan",
-                padding=(1, 2)
-            ))
-            
-            self.console.print()
-            self.console.print("[bold]Seçenekler:[/bold]")
-            self.console.print("  [cyan]1[/cyan]  🔍 Sürüm Ara")
-            self.console.print("  [cyan]2[/cyan]  📋 Sürüm Listesi")
-            self.console.print("  [cyan]3[/cyan]  📊 Popüler Sürümler")
-            self.console.print("  [cyan]4[/cyan]  🎮 Snapshots")
-            self.console.print("  [cyan]5[/cyan]  🔧 Release Candidates")
-            self.console.print("  [cyan]6[/cyan]  📈 En Güncel Sürümler")
-            self.console.print("  [cyan]7[/cyan]  🔧 Forge Sürümleri")
-            self.console.print("  [cyan]8[/cyan]  ⚡ OptiFine Sürümleri")
-            self.console.print("  [cyan]9[/cyan]  🧵 Fabric Sürümleri")
-            self.console.print()
-            self.console.print("  [dim]0[/dim]  Geri")
-            
-            choice = Prompt.ask("\n[cyan]>[/cyan]", choices=["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"])
-            
-            if choice == "0":
-                break
-            elif choice == "1":
-                self._search_versions()
-            elif choice == "2":
-                self._show_versions_menu()
-            elif choice == "3":
-                self._show_popular_versions()
-            elif choice == "4":
-                self._show_snapshot_versions()
-            elif choice == "5":
-                self._show_release_candidate_versions()
-            elif choice == "6":
-                self._show_latest_versions()
-            elif choice == "7":
-                self._show_forge_versions()
-            elif choice == "8":
-                self._show_optifine_versions()
-            elif choice == "9":
-                self._show_fabric_versions()
-    
-    def _search_versions(self):
-        """Sürüm arama"""
-        os.system('clear')
-        
-        self.console.print(Panel(
-            "[bold cyan]SÜRÜM ARAMA[/bold cyan]\n"
-            "[dim]Minecraft sürümlerinde arama yapın[/dim]",
-            border_style="cyan",
-            padding=(1, 2)
-        ))
-        
-        search_term = Prompt.ask("[cyan]Aranacak sürüm (örn: 1.21, 1.20, snapshot)[/cyan]")
-        
-        if not search_term:
-            self.console.print("[red]❌ Arama terimi boş olamaz![/red]")
-            input("[dim]Enter...[/dim]")
-    
-    def _download_version_with_progress(self, version_id):
-        """Progress bar ile sürüm indirme"""
-        try:
-            # İndirme ekranı başlat
-            self.console.print(Panel(
-                f"[bold cyan]MINECRAFT SÜRÜM İNDİRİLİYOR[/bold cyan]\n"
-                f"[dim]Sürüm: {version_id}[/dim]",
-                border_style="cyan",
-                padding=(1, 2)
-            ))
-            
-            # Sürüm bilgilerini al
-            self.console.print(f"[blue]🔍 Sürüm bilgileri alınıyor: {version_id}[/blue]")
-            versions = self._get_available_versions()
-            version_info = None
-            
-            for version in versions:
-                if version["id"] == version_id:
-                    version_info = version
-                    break
-            
-            if not version_info:
-                self.console.print(f"[red]❌ Sürüm bulunamadı: {version_id}[/red]")
-                input("[dim]Enter...[/dim]")
-                return
-            
-            # Sürüm boyutunu hesapla
-            total_size = 0
-            if "downloads" in version_info and "client" in version_info["downloads"]:
-                total_size = version_info["downloads"]["client"].get("size", 0)
-            
-            size_mb = round(total_size / (1024 * 1024), 1) if total_size > 0 else "Bilinmiyor"
-            
-            self.console.print(f"[green]✅ Sürüm bulundu! Boyut: {size_mb} MB[/green]")
-            
-            # İndirme başlat
-            if self._download_version(version_id):
-                self.console.print(f"[green]✅ {version_id} başarıyla indirildi![/green]")
-                if Confirm.ask("Şimdi başlatmak ister misiniz?", default=True):
-                    self._launch_minecraft(version_id)
-            else:
-                self.console.print(f"[red]❌ {version_id} indirilemedi![/red]")
-                
-        except Exception as e:
-            self.console.print(f"[red]❌ İndirme hatası: {e}[/red]")
-        
-        input("[dim]Enter...[/dim]")
-    
-    def _show_popular_versions(self):
-        """Popüler sürümler"""
-        os.system('clear')
-        
-        self.console.print(Panel(
-            "[bold cyan]POPÜLER SÜRÜMLER[/bold cyan]\n"
-            "[dim]En çok oynanan Minecraft sürümleri[/dim]",
-            border_style="cyan",
-            padding=(1, 2)
-        ))
-        
-        # Popüler sürümler listesi
-        popular_versions = [
-            {"id": "1.21.1", "name": "1.21.1", "description": "En güncel sürüm"},
-            {"id": "1.20.6", "name": "1.20.6", "description": "Stabil sürüm"},
-            {"id": "1.19.4", "name": "1.19.4", "description": "Mod uyumlu"},
-            {"id": "1.18.2", "name": "1.18.2", "description": "Forge uyumlu"},
-            {"id": "1.16.5", "name": "1.16.5", "description": "Klasik sürüm"},
-            {"id": "1.12.2", "name": "1.12.2", "description": "Eski mod sürümü"}
-        ]
-        
-        self.console.print()
-        for i, version in enumerate(popular_versions, 1):
-            self.console.print(f"  [cyan]{i}[/cyan]  {version['name']:10} [dim]{version['description']}[/dim]")
-        
-        self.console.print("\n[dim]0 = Geri[/dim]")
-        
-        try:
-            choice = int(Prompt.ask("\n[cyan]İndirilecek sürümü seçin:[/cyan]"))
-            
-            if choice == 0:
-                return
-            
-            if 1 <= choice <= len(popular_versions):
-                selected_version = popular_versions[choice - 1]
-                self._download_version_with_progress(selected_version['id'])
-            else:
-                self.console.print("[red]❌ Geçersiz seçim![/red]")
-                input("[dim]Enter...[/dim]")
-        except ValueError:
-            self.console.print("[red]❌ Geçersiz giriş![/red]")
-            input("[dim]Enter...[/dim]")
-    
-    def _show_snapshot_versions(self):
-        """Snapshot sürümleri"""
-        os.system('clear')
-        
-        self.console.print(Panel(
-            "[bold cyan]SNAPSHOT SÜRÜMLERİ[/bold cyan]\n"
-            "[dim]Minecraft snapshot sürümlerini indirin[/dim]",
-            border_style="cyan",
-            padding=(1, 2)
-        ))
-        
-        self.console.print("[blue]🔍 Snapshot sürümleri aranıyor...[/blue]")
-        
-        try:
-            versions = self._get_available_versions()
-            snapshot_versions = []
-            
-            for version in versions:
-                if version.get('type', '').lower() == 'snapshot':
-                    snapshot_versions.append(version)
-            
-            if snapshot_versions:
-                self.console.print(f"\n[green]✅ {len(snapshot_versions)} snapshot bulundu![/green]")
-                
-                # En son 10 snapshot'ı göster
-                recent_snapshots = snapshot_versions[:10]
-                for i, version in enumerate(recent_snapshots, 1):
-                    self.console.print(f"  [cyan]{i}[/cyan]  {version['id']:25} [dim]snapshot[/dim]")
-                
-                if len(snapshot_versions) > 10:
-                    self.console.print(f"  [dim]... ve {len(snapshot_versions) - 10} snapshot daha[/dim]")
-                
-                # İndirme seçimi
-                try:
-                    choice = int(Prompt.ask("\n[cyan]İndirilecek snapshot'ı seçin (0 = İptal)[/cyan]"))
-                    if choice == 0:
-                        return
-                    
-                    if 1 <= choice <= len(recent_snapshots):
-                        selected_version = recent_snapshots[choice - 1]
-                        self._download_version_with_progress(selected_version['id'])
-                    else:
-                        self.console.print("[red]❌ Geçersiz seçim![/red]")
-                        input("[dim]Enter...[/dim]")
-                except ValueError:
-                    self.console.print("[red]❌ Geçersiz giriş![/red]")
-                    input("[dim]Enter...[/dim]")
-            else:
-                self.console.print("[yellow]⚠️ Hiç snapshot bulunamadı![/yellow]")
-                input("[dim]Enter...[/dim]")
-                
-        except Exception as e:
-            self.console.print(f"[red]❌ Snapshot arama hatası: {e}[/red]")
-            input("[dim]Enter...[/dim]")
-    
-    def _show_release_candidate_versions(self):
-        """Release Candidate sürümleri"""
-        os.system('clear')
-        
-        self.console.print(Panel(
-            "[bold cyan]RELEASE CANDIDATE SÜRÜMLERİ[/bold cyan]\n"
-            "[dim]Minecraft release candidate sürümlerini indirin[/dim]",
-            border_style="cyan",
-            padding=(1, 2)
-        ))
-        
-        self.console.print("[blue]🔍 Release candidate sürümleri aranıyor...[/blue]")
-        
-        try:
-            versions = self._get_available_versions()
-            rc_versions = []
-            
-            for version in versions:
-                if 'rc' in version.get('id', '').lower() or version.get('type', '').lower() == 'release_candidate':
-                    rc_versions.append(version)
-            
-            if rc_versions:
-                self.console.print(f"\n[green]✅ {len(rc_versions)} release candidate bulundu![/green]")
-                
-                # En son 10 RC'yi göster
-                recent_rcs = rc_versions[:10]
-                for i, version in enumerate(recent_rcs, 1):
-                    self.console.print(f"  [cyan]{i}[/cyan]  {version['id']:25} [dim]release_candidate[/dim]")
-                
-                if len(rc_versions) > 10:
-                    self.console.print(f"  [dim]... ve {len(rc_versions) - 10} RC daha[/dim]")
-                
-                # İndirme seçimi
-                try:
-                    choice = int(Prompt.ask("\n[cyan]İndirilecek RC'yi seçin (0 = İptal)[/cyan]"))
-                    if choice == 0:
-                        return
-                    
-                    if 1 <= choice <= len(recent_rcs):
-                        selected_version = recent_rcs[choice - 1]
-                        self._download_version_with_progress(selected_version['id'])
-                    else:
-                        self.console.print("[red]❌ Geçersiz seçim![/red]")
-                        input("[dim]Enter...[/dim]")
-                except ValueError:
-                    self.console.print("[red]❌ Geçersiz giriş![/red]")
-                    input("[dim]Enter...[/dim]")
-            else:
-                self.console.print("[yellow]⚠️ Hiç release candidate bulunamadı![/yellow]")
-                input("[dim]Enter...[/dim]")
-                
-        except Exception as e:
-            self.console.print(f"[red]❌ RC arama hatası: {e}[/red]")
-            input("[dim]Enter...[/dim]")
-    
-    def _show_latest_versions(self):
-        """En güncel sürümler"""
-        os.system('clear')
-        
-        self.console.print(Panel(
-            "[bold cyan]EN GÜNCEL SÜRÜMLER[/bold cyan]\n"
-            "[dim]Minecraft'ın en yeni sürümlerini indirin[/dim]",
-            border_style="cyan",
-            padding=(1, 2)
-        ))
-        
-        self.console.print("[blue]🔍 En güncel sürümler aranıyor...[/blue]")
-        
-        try:
-            versions = self._get_available_versions()
-            latest_versions = []
-            
-            for version in versions:
-                if version.get('type', '').lower() == 'release':
-                    latest_versions.append(version)
-            
-            if latest_versions:
-                self.console.print(f"\n[green]✅ {len(latest_versions)} güncel sürüm bulundu![/green]")
-                
-                # En son 15 release'i göster
-                recent_releases = latest_versions[:15]
-                for i, version in enumerate(recent_releases, 1):
-                    self.console.print(f"  [cyan]{i}[/cyan]  {version['id']:25} [dim]release[/dim]")
-                
-                if len(latest_versions) > 15:
-                    self.console.print(f"  [dim]... ve {len(latest_versions) - 15} sürüm daha[/dim]")
-                
-                # İndirme seçimi
-                try:
-                    choice = int(Prompt.ask("\n[cyan]İndirilecek sürümü seçin (0 = İptal)[/cyan]"))
-                    if choice == 0:
-                        return
-                    
-                    if 1 <= choice <= len(recent_releases):
-                        selected_version = recent_releases[choice - 1]
-                        self._download_version_with_progress(selected_version['id'])
-                    else:
-                        self.console.print("[red]❌ Geçersiz seçim![/red]")
-                        input("[dim]Enter...[/dim]")
-                except ValueError:
-                    self.console.print("[red]❌ Geçersiz giriş![/red]")
-                    input("[dim]Enter...[/dim]")
-            else:
-                self.console.print("[yellow]⚠️ Hiç güncel sürüm bulunamadı![/yellow]")
-                input("[dim]Enter...[/dim]")
-                
-        except Exception as e:
-            self.console.print(f"[red]❌ Güncel sürüm arama hatası: {e}[/red]")
-            input("[dim]Enter...[/dim]")
-    
-    def _show_forge_versions(self):
-        """Forge sürümleri"""
-        os.system('clear')
-        
-        self.console.print(Panel(
-            "[bold cyan]FORGE SÜRÜMLERİ[/bold cyan]\n"
-            "[dim]Minecraft Forge sürümlerini indirin[/dim]",
-            border_style="cyan",
-            padding=(1, 2)
-        ))
-        
-        self.console.print("[blue]🔍 Forge sürümleri aranıyor...[/blue]")
-        
-        # Popüler Forge sürümleri
-        forge_versions = [
-            {"id": "1.21.1-forge-50.0.0", "name": "1.21.1 Forge 50.0.0", "description": "En güncel Forge"},
-            {"id": "1.20.6-forge-49.0.0", "name": "1.20.6 Forge 49.0.0", "description": "Stabil Forge"},
-            {"id": "1.19.4-forge-45.2.0", "name": "1.19.4 Forge 45.2.0", "description": "Mod uyumlu"},
-            {"id": "1.18.2-forge-40.2.0", "name": "1.18.2 Forge 40.2.0", "description": "Popüler sürüm"},
-            {"id": "1.16.5-forge-36.2.0", "name": "1.16.5 Forge 36.2.0", "description": "Klasik Forge"},
-            {"id": "1.12.2-forge-14.23.5.2860", "name": "1.12.2 Forge 14.23.5.2860", "description": "Eski mod sürümü"}
-        ]
-        
-        self.console.print(f"\n[green]✅ {len(forge_versions)} Forge sürümü bulundu![/green]")
-        
-        for i, version in enumerate(forge_versions, 1):
-            self.console.print(f"  [cyan]{i}[/cyan]  {version['name']:35} [dim]{version['description']}[/dim]")
-        
-        self.console.print("\n[dim]0 = Geri[/dim]")
-        
-        try:
-            choice = int(Prompt.ask("\n[cyan]İndirilecek Forge sürümünü seçin:[/cyan]"))
-            
-            if choice == 0:
-                return
-            
-            if 1 <= choice <= len(forge_versions):
-                selected_version = forge_versions[choice - 1]
-                self.console.print(f"\n[cyan]Seçilen: {selected_version['name']}[/cyan]")
-                
-                if Confirm.ask(f"\n[cyan]{selected_version['name']} indirilsin ve kurulsun mu?[/cyan]", default=True):
-                    # Forge version ID'den kurulum yap
-                    self._install_forge(selected_version['id'])
-            else:
-                self.console.print("[red]❌ Geçersiz seçim![/red]")
-                input("[dim]Enter...[/dim]")
-        except ValueError:
-            self.console.print("[red]❌ Geçersiz giriş![/red]")
-            input("[dim]Enter...[/dim]")
-    
-    def _show_optifine_versions(self):
-        """OptiFine sürümleri"""
-        os.system('clear')
-        
-        self.console.print(Panel(
-            "[bold cyan]OPTIFINE SÜRÜMLERİ[/bold cyan]\n"
-            "[dim]Minecraft OptiFine sürümlerini indirin[/dim]",
-            border_style="cyan",
-            padding=(1, 2)
-        ))
-        
-        self.console.print("[blue]🔍 OptiFine sürümleri aranıyor...[/blue]")
-        
-        # Popüler OptiFine sürümleri
-        optifine_versions = [
-            {"id": "1.21.1-OptiFine-HD-U-I9", "name": "1.21.1 OptiFine HD U I9", "description": "En güncel OptiFine"},
-            {"id": "1.20.6-OptiFine-HD-U-I8", "name": "1.20.6 OptiFine HD U I8", "description": "Stabil OptiFine"},
-            {"id": "1.19.4-OptiFine-HD-U-I6", "name": "1.19.4 OptiFine HD U I6", "description": "Performans odaklı"},
-            {"id": "1.18.2-OptiFine-HD-U-H9", "name": "1.18.2 OptiFine HD U H9", "description": "Popüler sürüm"},
-            {"id": "1.16.5-OptiFine-HD-U-G8", "name": "1.16.5 OptiFine HD U G8", "description": "Klasik OptiFine"},
-            {"id": "1.12.2-OptiFine-HD-U-G5", "name": "1.12.2 OptiFine HD U G5", "description": "Eski sürüm"}
-        ]
-        
-        self.console.print(f"\n[green]✅ {len(optifine_versions)} OptiFine sürümü bulundu![/green]")
-        
-        for i, version in enumerate(optifine_versions, 1):
-            self.console.print(f"  [cyan]{i}[/cyan]  {version['name']:35} [dim]{version['description']}[/dim]")
-        
-        self.console.print("\n[dim]0 = Geri[/dim]")
-        
-        try:
-            choice = int(Prompt.ask("\n[cyan]İndirilecek OptiFine sürümünü seçin:[/cyan]"))
-            
-            if choice == 0:
-                return
-            
-            if 1 <= choice <= len(optifine_versions):
-                selected_version = optifine_versions[choice - 1]
-                self.console.print(f"[yellow]⚠️ OptiFine sürümleri manuel olarak indirilmelidir.[/yellow]")
-                self.console.print(f"[blue]🌐 OptiFine İndirme: https://optifine.net/downloads[/blue]")
-                self.console.print(f"[dim]OptiFine'ı indirdikten sonra mods klasörüne yerleştirin.[/dim]")
-                input("[dim]Enter...[/dim]")
-            else:
-                self.console.print("[red]❌ Geçersiz seçim![/red]")
-                input("[dim]Enter...[/dim]")
-        except ValueError:
-            self.console.print("[red]❌ Geçersiz giriş![/red]")
-            input("[dim]Enter...[/dim]")
-    
-    def _show_fabric_versions(self):
-        """Fabric sürümleri"""
-        os.system('clear')
-        
-        self.console.print(Panel(
-            "[bold cyan]FABRIC SÜRÜMLERİ[/bold cyan]\n"
-            "[dim]Minecraft Fabric sürümlerini indirin[/dim]",
-            border_style="cyan",
-            padding=(1, 2)
-        ))
-        
-        self.console.print("[blue]🔍 Fabric sürümleri aranıyor...[/blue]")
-        
-        # Popüler Fabric sürümleri
-        fabric_versions = [
-            {"id": "1.21.1-fabric-0.16.0", "name": "1.21.1 Fabric 0.16.0", "description": "En güncel Fabric"},
-            {"id": "1.20.6-fabric-0.15.0", "name": "1.20.6 Fabric 0.15.0", "description": "Stabil Fabric"},
-            {"id": "1.19.4-fabric-0.14.0", "name": "1.19.4 Fabric 0.14.0", "description": "Mod uyumlu"},
-            {"id": "1.18.2-fabric-0.13.0", "name": "1.18.2 Fabric 0.13.0", "description": "Popüler sürüm"},
-            {"id": "1.16.5-fabric-0.12.0", "name": "1.16.5 Fabric 0.12.0", "description": "Klasik Fabric"},
-            {"id": "1.12.2-fabric-0.8.0", "name": "1.12.2 Fabric 0.8.0", "description": "Eski sürüm"}
-        ]
-        
-        self.console.print(f"\n[green]✅ {len(fabric_versions)} Fabric sürümü bulundu![/green]")
-        
-        for i, version in enumerate(fabric_versions, 1):
-            self.console.print(f"  [cyan]{i}[/cyan]  {version['name']:35} [dim]{version['description']}[/dim]")
-        
-        self.console.print("\n[dim]0 = Geri[/dim]")
-        
-        try:
-            choice = int(Prompt.ask("\n[cyan]İndirilecek Fabric sürümünü seçin:[/cyan]"))
-            
-            if choice == 0:
-                return
-            
-            if 1 <= choice <= len(fabric_versions):
-                selected_version = fabric_versions[choice - 1]
-                self.console.print(f"\n[cyan]Seçilen: {selected_version['name']}[/cyan]")
-                
-                if Confirm.ask(f"\n[cyan]{selected_version['name']} indirilsin ve kurulsun mu?[/cyan]", default=True):
-                    # Fabric için MC version'ı parse et (örn: "1.21.1-fabric-0.16.0" -> "1.21.1")
-                    mc_version = selected_version['id'].split('-')[0]
-                    self._install_fabric(mc_version)
-            else:
-                self.console.print("[red]❌ Geçersiz seçim![/red]")
-                input("[dim]Enter...[/dim]")
-        except ValueError:
-            self.console.print("[red]❌ Geçersiz giriş![/red]")
-            input("[dim]Enter...[/dim]")
-    
-    def _first_run_setup(self):
-        """İlk çalıştırma kurulum menüsü"""
-        if not self.config.get("first_run_completed", False):
-            os.system('clear')
-            
-            self.console.print(Panel(
-                "[bold cyan]🎮 BERKE MINECRAFT LAUNCHER'e HOŞ GELDİNİZ![/bold cyan]\n"
-                "[dim]İlk kurulum sihirbazı[/dim]",
-                border_style="cyan",
-                padding=(1, 2)
-            ))
-            
-            self.console.print()
-            self.console.print("[bold]Launcher Hakkında:[/bold]")
-            self.console.print("• 🚀 Ultra hızlı Minecraft launcher'ı")
-            self.console.print("• ☕ Otomatik Java yönetimi")
-            self.console.print("• 📥 Gelişmiş sürüm indirme sistemi")
-            self.console.print("• 🎨 Skin yönetimi")
-            self.console.print("• 🔧 Mod desteği")
-            self.console.print("• 🖥️ Wayland/Hyprland uyumlu")
-            
-            self.console.print()
-            self.console.print("[bold]Kurulum Adımları:[/bold]")
-            
-            # Java kontrolü
-            java_versions = self._get_installed_java_versions()
-            if not java_versions:
-                self.console.print("[red]❌ Java bulunamadı![/red]")
-                self.console.print("[yellow]Java kurulumu yapılıyor...[/yellow]")
-                
-                if Confirm.ask("Java 21 otomatik kurulsun mu?", default=True):
-                    self.console.print("[blue]📦 Java 21 kuruluyor...[/blue]")
-                    try:
-                        import subprocess
-                        result = subprocess.run(["sudo", "pacman", "-S", "--noconfirm", "jdk21-openjdk"], 
-                                              capture_output=True, text=True)
-                        if result.returncode == 0:
-                            self.console.print("[green]✅ Java 21 başarıyla kuruldu![/green]")
-                            # Java'yı güncelle
-                            self.java_executable = "/usr/lib/jvm/java-21-openjdk/bin/java"
-                            self.config["java_path"] = "/usr/lib/jvm/java-21-openjdk/bin/java"
-                            self._save_config()
-                        else:
-                            self.console.print("[red]❌ Java kurulumu başarısız![/red]")
-                            self.console.print("[yellow]Manuel kurulum: sudo pacman -S jdk21-openjdk[/yellow]")
-                    except Exception as e:
-                        self.console.print(f"[red]❌ Java kurulum hatası: {e}[/red]")
-            else:
-                self.console.print("[green]✅ Java bulundu![/green]")
-                # En uygun Java'yı seç
-                recommended = None
-                for java in java_versions:
-                    try:
-                        major = int(java["version"].split('.')[0])
-                        if major == 21:
-                            recommended = java
-                            break
-                        elif major == 17 and not recommended:
-                            recommended = java
-                    except:
-                        continue
-                
-                if recommended:
-                    self.java_executable = recommended["path"]
-                    self.config["java_path"] = recommended["path"]
-                    self._save_config()
-                    self.console.print(f"[green]✅ Java otomatik seçildi: {recommended['name']}[/green]")
-            
-            # İlk sürüm önerisi
-            self.console.print()
-            self.console.print("[bold]İlk Minecraft sürümü:[/bold]")
-            if Confirm.ask("1.21.1 sürümü indirilsin mi?", default=True):
-                self.console.print("[blue]📥 1.21.1 sürümü indiriliyor...[/blue]")
-                if self._download_version("1.21.1"):
-                    self.console.print("[green]✅ 1.21.1 başarıyla indirildi![/green]")
-                else:
-                    self.console.print("[red]❌ 1.21.1 indirilemedi![/red]")
-            
-            # Kurulum tamamlandı
-            self.config["first_run_completed"] = True
-            self._save_config()
-            
-            self.console.print()
-            self.console.print(Panel(
-                "[bold green]🎉 KURULUM TAMAMLANDI![/bold green]\n"
-                "[dim]Artık Berke Minecraft Launcher'ı kullanabilirsiniz![/dim]",
-                border_style="green",
-                padding=(1, 2)
-            ))
-            
-            input("\n[dim]Devam etmek için Enter'a basın...[/dim]")
     
     def run(self):
         """Ana launcher döngüsü - Minimal TUI"""
-        # İlk çalıştırma kontrolü
-        self._first_run_setup()
-        
         print("DEBUG: run() başladı")
         while True:
             # TTY kontrolü yap
@@ -6633,14 +4000,14 @@ class MinecraftLauncher:
                 ))
                 break
             elif choice == "1":
-                # Minecraft Başlat - Sadece başlatma için
-                self._show_launch_versions()
+                # Minecraft Başlat
+                self._show_installed_versions()
             elif choice == "2":
-                # Sürüm İndir - Gelişmiş menü
-                self._show_advanced_download_menu()
+                # Sürüm İndir
+                self._show_versions_menu()
             elif choice == "3":
-                # Sürümlerim - Yönetim
-                self._show_version_management()
+                # Sürümlerim - Kompakt
+                os.system('clear')
                 installed = self._get_installed_versions()
                 if not installed:
                     self.console.print(Panel(
@@ -6690,7 +4057,7 @@ class MinecraftLauncher:
                                 input("[dim]Enter...[/dim]")
                     except ValueError:
                         self.console.print("[red]❌ Geçersiz giriş![/red]")
-                input("[dim]Enter...[/dim]")
+                        input("[dim]Enter...[/dim]")
             elif choice == "4":
                 # Skin Yönetimi
                 self._show_skin_menu()

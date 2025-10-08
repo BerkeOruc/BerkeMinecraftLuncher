@@ -1,0 +1,3 @@
+[console_scripts]
+berke-minecraft-launcher = berke_minecraft_launcher:main
+berkemc = berke_minecraft_launcher:main
