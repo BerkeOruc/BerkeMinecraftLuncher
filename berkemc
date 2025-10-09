@@ -1,10 +1,65 @@
 #!/bin/bash
 
-# Berke Minecraft Launcher - Main Entry Point
+# BerkeMC - Advanced Minecraft Launcher
+# Main Entry Point
 
-# Check if berkemc update command is used
-if [ "$1" = "update" ]; then
-    echo "🔄 Berke Minecraft Launcher güncelleniyor..."
+VERSION="2.7.0"
+
+# Check for version commands
+if [ "$1" = "version" ] || [ "$1" = "--version" ] || [ "$1" = "-v" ]; then
+    echo "🎮 BerkeMC v${VERSION}"
+    echo "📦 Advanced Minecraft Launcher"
+    echo "🔗 https://github.com/BerkeOruc/berkemc"
+    exit 0
+fi
+
+# Check for uninstall command
+if [ "$1" = "uninstall" ] || [ "$1" = "--uninstall" ]; then
+    echo "🗑️  BerkeMC Kaldırılıyor..."
+    echo ""
+    echo "Kaldırılacak öğeler:"
+    echo "  • BerkeMC paketi"
+    echo "  • Ayar dosyaları: ~/.berke_minecraft_launcher/"
+    echo "  • Minecraft sürümleri: ~/.berke_minecraft_launcher/versions/"
+    echo "  ⚠️  Minecraft dizini (~/.minecraft/) korunacak"
+    echo ""
+    read -p "Devam etmek istiyor musunuz? (e/H): " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Ee]$ ]]; then
+        echo "📦 Paket kaldırılıyor..."
+        
+        # Uninstall package
+        if command -v yay &> /dev/null; then
+            yay -Rns berkemc --noconfirm
+        elif command -v paru &> /dev/null; then
+            paru -Rns berkemc --noconfirm
+        elif command -v pacman &> /dev/null; then
+            sudo pacman -Rns berkemc --noconfirm
+        else
+            echo "❌ Paket yöneticisi bulunamadı!"
+            exit 1
+        fi
+        
+        # Ask to remove config
+        echo ""
+        read -p "Ayar dosyalarını da sil? (e/H): " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Ee]$ ]]; then
+            echo "🗑️  Ayar dosyaları siliniyor..."
+            rm -rf ~/.berke_minecraft_launcher/
+            echo "✅ Ayar dosyaları silindi!"
+        fi
+        
+        echo "✅ BerkeMC başarıyla kaldırıldı!"
+    else
+        echo "❌ Kaldırma iptal edildi."
+    fi
+    exit 0
+fi
+
+# Check for update command
+if [ "$1" = "update" ] || [ "$1" = "--update" ]; then
+    echo "🔄 BerkeMC güncelleniyor..."
     
     # Check if yay is available
     if command -v yay &> /dev/null; then
@@ -23,29 +78,29 @@ if [ "$1" = "update" ]; then
     exit 0
 fi
 
-# Check if berkemc version command is used
-if [ "$1" = "version" ]; then
-    python3 -c "from version import get_full_version_string; print(get_full_version_string())"
-    exit 0
-fi
-
-# Check if berkemc help command is used
+# Check for help command
 if [ "$1" = "help" ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
-    echo "🎮 Berke Minecraft Launcher v2.4.0"
+    echo "🎮 BerkeMC v${VERSION} - Advanced Minecraft Launcher"
     echo ""
     echo "Kullanım:"
-    echo "  berkemc                 - Launcher'ı başlat"
-    echo "  berkemc update          - Son sürüme güncelle"
-    echo "  berkemc version         - Sürüm bilgisi göster"
-    echo "  berkemc help            - Bu yardım menüsünü göster"
+    echo "  berkemc                    - Launcher'ı başlat"
+    echo "  berkemc version, -v        - Sürüm bilgisi göster"
+    echo "  berkemc update             - Son sürüme güncelle"
+    echo "  berkemc uninstall          - BerkeMC'yi kaldır"
+    echo "  berkemc help, -h           - Bu yardım menüsünü göster"
     echo ""
     echo "Özellikler:"
     echo "  🚀 Ultra hızlı Minecraft launcher'ı"
-    echo "  ☕ Otomatik Java yönetimi"
-    echo "  📥 Gelişmiş sürüm indirme sistemi"
-    echo "  🎨 Skin yönetimi"
-    echo "  🔧 Mod desteği"
-    echo "  🖥️ Wayland/Hyprland uyumlu"
+    echo "  ☕ Otomatik Java yönetimi (Java 17-25)"
+    echo "  📥 Paralel indirme sistemi (16 thread)"
+    echo "  🎨 Skin yönetimi ve önizleme"
+    echo "  🔧 Mod desteği (Forge, Fabric, OptiFine)"
+    echo "  🖥️  Wayland/Hyprland tam desteği"
+    echo "  🎯 Asset doğrulama ve otomatik onarım"
+    echo "  📊 Performans izleme (FPS, RAM, CPU)"
+    echo ""
+    echo "Repo: https://github.com/BerkeOruc/berkemc"
+    echo "AUR:  https://aur.archlinux.org/packages/berkemc"
     exit 0
 fi
 

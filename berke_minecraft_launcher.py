@@ -1262,13 +1262,19 @@ class MinecraftLauncher:
             return False
     
     def _get_installed_versions(self) -> List[str]:
-        """İndirilen sürümleri listele"""
+        """İndirilen sürümleri listele - TÜM sürümler (vanilla, Forge, Fabric)"""
         versions = []
         for version_dir in self.versions_dir.iterdir():
             if version_dir.is_dir():
+                # İlk önce aynı isimde JAR ara
                 jar_file = version_dir / f"{version_dir.name}.jar"
                 if jar_file.exists():
                     versions.append(version_dir.name)
+                else:
+                    # Değilse dizindeki herhangi bir JAR dosyasını ara
+                    jar_files = list(version_dir.glob("*.jar"))
+                    if jar_files:
+                        versions.append(version_dir.name)
         return sorted(versions, reverse=True)
     
     def _create_launch_command(self, version_id: str) -> List[str]:
