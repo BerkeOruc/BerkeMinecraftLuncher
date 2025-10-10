@@ -36,9 +36,18 @@ from colorama import Fore, Back, Style
 try:
     from version import __version__, get_full_version_string
 except ImportError:
-    __version__ = "3.0.0"
+    __version__ = "3.2.0"
     def get_full_version_string():
         return f"BerkeMC v{__version__}"
+
+# i18n sistemi import et
+try:
+    from i18n import I18n, t as i18n_t, set_language, get_current_language
+    _i18n_available = True
+except ImportError:
+    _i18n_available = False
+    def i18n_t(key, **kwargs):
+        return key
 
 # Colorama'yı başlat
 colorama.init(autoreset=True)
@@ -69,6 +78,11 @@ class MinecraftLauncher:
         
         # Config dosyasını yükle
         self.config = self._load_config()
+        
+        # i18n dilini yükle
+        if _i18n_available:
+            lang = self.config.get("language", "tr")
+            set_language(lang)
         
         # Minecraft API URL'leri
         self.version_manifest_url = "https://launchermeta.mojang.com/mc/game/version_manifest.json"
@@ -3370,9 +3384,17 @@ class MinecraftLauncher:
                 self.config["language"] = new_lang
                 self._save_config()
                 
+                # i18n dilini de değiştir
+                if _i18n_available:
+                    set_language(new_lang)
+                
                 lang_name = "🇹🇷 Türkçe" if new_lang == "tr" else "🇬🇧 English"
-                self.console.print(f"[green]✅ Dil değiştirildi: {lang_name}[/green]")
-                self.console.print(f"[yellow]ℹ️  Tam etki için launcher'ı yeniden başlatın[/yellow]")
+                if new_lang == "tr":
+                    self.console.print(f"[green]✅ Dil değiştirildi: {lang_name}[/green]")
+                    self.console.print(f"[yellow]ℹ️  Değişiklikler menülere yansıyacak[/yellow]")
+                else:
+                    self.console.print(f"[green]✅ Language changed: {lang_name}[/green]")
+                    self.console.print(f"[yellow]ℹ️  Changes will reflect in menus[/yellow]")
                 input("[dim]Enter...[/dim]")
             elif choice == "3":
                 memory_options = ["auto", "2", "4", "6", "8", "12", "16"]
@@ -7110,7 +7132,7 @@ class MinecraftLauncher:
             if choice == "0":
                 # Çıkış - Güzel mesaj
                 os.system('clear')
-                goodbye_msg = """
+                goodbye_msg = f"""
 [bold cyan]██████╗ [/bold cyan] 
 [bold cyan]██╔══██╗[/bold cyan] [bold green]Tesekkurler![/bold green]
 [bold cyan]██████╔╝[/bold cyan] 
