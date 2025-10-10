@@ -3,7 +3,7 @@
 # BerkeMC - Advanced Minecraft Launcher
 # Main Entry Point
 
-VERSION="3.0.0"
+VERSION="3.1.0"
 
 # Check for version commands
 if [ "$1" = "version" ] || [ "$1" = "--version" ] || [ "$1" = "-v" ]; then
@@ -151,5 +151,6 @@ if [ "$1" = "help" ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
 fi
 
 # Default: Start the launcher
-cd "$(dirname "$0")"
-python3 berke_minecraft_launcher.py "$@"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR" || exit 1
+exec python3 "$SCRIPT_DIR/berke_minecraft_launcher.py" "$@"

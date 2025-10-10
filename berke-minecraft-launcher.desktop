@@ -1,12 +1,15 @@
 [Desktop Entry]
-Version=1.0
+Version=3.1.0
 Type=Application
-Name=Berke Minecraft Launcher
-Comment=Ultra fast Minecraft launcher for Arch Linux
+Name=BerkeMC
+GenericName=Minecraft Launcher
+Comment=Advanced Minecraft launcher with Forge/Fabric support
 Exec=berkemc
 Icon=berkemc
 Terminal=true
-Categories=Game;
-Keywords=minecraft;launcher;gaming;
+Categories=Game;Utility;
+Keywords=minecraft;launcher;gaming;forge;fabric;mod;
 StartupNotify=true
+StartupWMClass=berkemc
 MimeType=application/x-minecraft-profile;
+X-GNOME-UsesNotifications=false
