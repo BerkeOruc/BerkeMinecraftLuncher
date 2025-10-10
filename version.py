@@ -3,7 +3,7 @@
 Berke Minecraft Launcher - Version Information
 """
 
-__version__ = "3.2.1"
+__version__ = "3.3.0"
 __author__ = "Berke Oruç"
 __email__ = "berke3oruc@gmail.com"
 __license__ = "MIT"
@@ -12,8 +12,8 @@ __url__ = "https://github.com/BerkeOruc/berkemc"
 
 # Version info
 VERSION_MAJOR = 3
-VERSION_MINOR = 2
-VERSION_PATCH = 1
+VERSION_MINOR = 3
+VERSION_PATCH = 0
 VERSION_INFO = (VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH)
 
 # Build info
