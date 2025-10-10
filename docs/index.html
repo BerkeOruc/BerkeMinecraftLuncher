@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BerkeMC - Advanced Minecraft Launcher for Arch Linux</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            text-align: center;
+            padding: 60px 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            margin-bottom: 40px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        h1 {
+            font-size: 3.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        
+        .subtitle {
+            font-size: 1.5em;
+            opacity: 0.9;
+            margin-bottom: 30px;
+        }
+        
+        .version {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 10px 20px;
+            border-radius: 25px;
+            display: inline-block;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+        
+        .install-section {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            border-radius: 15px;
+            margin-bottom: 40px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        .code-block {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 20px;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 1.2em;
+            margin: 20px 0;
+            border-left: 4px solid #4CAF50;
+        }
+        
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        
+        .feature-card {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 30px;
+            border-radius: 15px;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
+        }
+        
+        .feature-icon {
+            font-size: 3em;
+            margin-bottom: 15px;
+        }
+        
+        .feature-title {
+            font-size: 1.5em;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        
+        .feature-desc {
+            opacity: 0.9;
+        }
+        
+        .buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 30px;
+        }
+        
+        .btn {
+            padding: 15px 40px;
+            border-radius: 30px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 1.1em;
+            transition: all 0.3s;
+            display: inline-block;
+        }
+        
+        .btn-primary {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #45a049;
+            transform: scale(1.05);
+        }
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 2px solid white;
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
+        }
+        
+        footer {
+            text-align: center;
+            padding: 40px 20px;
+            opacity: 0.8;
+        }
+        
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2.5em;
+            }
+            
+            .subtitle {
+                font-size: 1.2em;
+            }
+            
+            .features {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎮 BerkeMC</h1>
+            <div class="subtitle">Advanced Minecraft Launcher for Arch Linux</div>
+            <div class="version">v4.0.0 - Ultimate Edition</div>
+            <div class="buttons">
+                <a href="https://github.com/BerkeOruc/BerkeMinecraftLuncher" class="btn btn-primary">📥 View on GitHub</a>
+                <a href="https://aur.archlinux.org/packages/berkemc" class="btn btn-secondary">📦 AUR Package</a>
+            </div>
+        </header>
+
+        <div class="install-section">
+            <h2 style="font-size: 2em; margin-bottom: 20px; text-align: center;">⚡ Quick Installation</h2>
+            <div class="code-block">
+                yay -S berkemc
+            </div>
+            <p style="text-align: center; margin-top: 20px; font-size: 1.1em;">
+                Then simply run: <strong>berkemc</strong>
+            </p>
+        </div>
+
+        <h2 style="font-size: 2.5em; margin-bottom: 30px; text-align: center;">✨ Features</h2>
+        
+        <div class="features">
+            <div class="feature-card">
+                <div class="feature-icon">🚀</div>
+                <div class="feature-title">Ultra Fast</div>
+                <div class="feature-desc">
+                    16-thread parallel downloads for lightning-fast installation.
+                    Optimized for maximum performance.
+                </div>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">⚒️</div>
+                <div class="feature-title">Forge Support</div>
+                <div class="feature-desc">
+                    Automatic Forge installation with base Minecraft.
+                    One-click mod loader setup.
+                </div>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">🧵</div>
+                <div class="feature-title">Fabric Support</div>
+                <div class="feature-desc">
+                    Full Fabric support with automatic base game download.
+                    Modern mod ecosystem ready.
+                </div>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">🌍</div>
+                <div class="feature-title">Multi-Language</div>
+                <div class="feature-desc">
+                    Turkish and English built-in. Easy to add more languages.
+                    Switch anytime in settings.
+                </div>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">🎨</div>
+                <div class="feature-title">Skin Management</div>
+                <div class="feature-desc">
+                    Upload and manage Minecraft skins.
+                    Simple and user-friendly interface.
+                </div>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">🖥️</div>
+                <div class="feature-title">Wayland Support</div>
+                <div class="feature-desc">
+                    Full Wayland/Hyprland compatibility.
+                    Perfect for modern Arch setups.
+                </div>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">☕</div>
+                <div class="feature-title">Java Management</div>
+                <div class="feature-desc">
+                    Automatic Java version detection.
+                    Supports Java 17-25 with auto-switching.
+                </div>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">📊</div>
+                <div class="feature-title">Performance Monitor</div>
+                <div class="feature-desc">
+                    Real-time FPS, RAM, and CPU monitoring.
+                    Optimize your gameplay.
+                </div>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">🎯</div>
+                <div class="feature-title">Asset Verification</div>
+                <div class="feature-desc">
+                    Automatic asset verification and repair.
+                    Never worry about missing files.
+                </div>
+            </div>
+        </div>
+
+        <div class="install-section">
+            <h2 style="font-size: 2em; margin-bottom: 20px; text-align: center;">🎮 CLI Commands</h2>
+            <div class="code-block">
+berkemc --version   # Show version<br>
+berkemc help        # Show all commands<br>
+berkemc reinstall   # Clean reinstall<br>
+berkemc uninstall   # Uninstall launcher<br>
+berkemc update      # Update to latest
+            </div>
+        </div>
+
+        <div class="install-section">
+            <h2 style="font-size: 2em; margin-bottom: 20px; text-align: center;">📖 Documentation</h2>
+            <div class="buttons">
+                <a href="https://github.com/BerkeOruc/BerkeMinecraftLuncher/blob/main/README.md" class="btn btn-secondary">📘 README</a>
+                <a href="https://github.com/BerkeOruc/BerkeMinecraftLuncher/blob/main/ARCH_HYPRLAND_KURULUM.md" class="btn btn-secondary">🇹🇷 Turkish Guide</a>
+                <a href="https://github.com/BerkeOruc/BerkeMinecraftLuncher/blob/main/INSTALLATION_GUIDE.md" class="btn btn-secondary">📋 Install Guide</a>
+            </div>
+        </div>
+
+        <footer>
+            <p style="font-size: 1.2em; margin-bottom: 10px;">
+                Made with ❤️ by Berke Oruç
+            </p>
+            <p>
+                <a href="https://github.com/BerkeOruc" style="color: white; text-decoration: none;">
+                    GitHub: @BerkeOruc
+                </a>
+            </p>
+            <p style="margin-top: 20px; opacity: 0.7;">
+                © 2025 BerkeMC - Open Source under MIT License
+            </p>
+        </footer>
+    </div>
+</body>
+</html>
+
