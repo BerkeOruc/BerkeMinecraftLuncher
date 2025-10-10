@@ -3,7 +3,7 @@
 # BerkeMC - Advanced Minecraft Launcher
 # Main Entry Point
 
-VERSION="2.8.0"
+VERSION="2.9.2"
 
 # Check for version commands
 if [ "$1" = "version" ] || [ "$1" = "--version" ] || [ "$1" = "-v" ]; then
