@@ -6323,16 +6323,33 @@ class MinecraftLauncher:
         
         self.console.print()
         
-        # Sadece sürüm listesi
+        # Sürüm listesi - Mod loader türü ile
         for i, version in enumerate(versions, 1):
             version_dir = self.versions_dir / version
             jar_file = version_dir / f"{version}.jar"
             
+            # Mod loader türünü belirle
+            loader_type = ""
+            if "forge" in version.lower():
+                loader_type = "[yellow]⚒️  Forge[/yellow]"
+            elif "fabric" in version.lower():
+                loader_type = "[green]🧵 Fabric[/green]"
+            elif "quilt" in version.lower():
+                loader_type = "[purple]🎨 Quilt[/purple]"
+            else:
+                loader_type = "[blue]⭐ Vanilla[/blue]"
+            
             if jar_file.exists():
                 size_mb = round(jar_file.stat().st_size / (1024*1024), 1)
-                self.console.print(f"  [cyan]{i}[/cyan]  {version:15}  [dim]{size_mb:.0f} MB[/dim]")
+                self.console.print(f"  [cyan]{i}[/cyan]  {version:25}  {loader_type}  [dim]{size_mb:.0f} MB[/dim]")
             else:
-                self.console.print(f"  [cyan]{i}[/cyan]  {version:15}  [red]Eksik[/red]")
+                # JAR dosyası yoksa dizindeki herhangi bir JAR'a bak
+                jar_files = list(version_dir.glob("*.jar"))
+                if jar_files:
+                    size_mb = round(jar_files[0].stat().st_size / (1024*1024), 1)
+                    self.console.print(f"  [cyan]{i}[/cyan]  {version:25}  {loader_type}  [dim]{size_mb:.0f} MB[/dim]")
+                else:
+                    self.console.print(f"  [cyan]{i}[/cyan]  {version:25}  {loader_type}  [red]Eksik JAR[/red]")
         
         self.console.print("\n[dim]0 = Geri | Numara = Başlat[/dim]")
         
