@@ -1958,7 +1958,16 @@ class MinecraftLauncher:
                     input("[dim]Enter ile devam...[/dim]")
                     return False
                 
-                progress.update(task, description=f"[cyan]⚙️  Forge kuruluyor (1-2 dakika)...", advance=20)
+                # Önce base Minecraft sürümünü indir
+                progress.update(task, description=f"[cyan]📦 Base Minecraft {minecraft_version} indiriliyor...", advance=10)
+                if not (self.versions_dir / minecraft_version / f"{minecraft_version}.jar").exists():
+                    self.console.print(f"[blue]📦 Minecraft {minecraft_version} base version indiriliyor...[/blue]")
+                    if not self._download_version(minecraft_version):
+                        self.console.print("[red]❌ Base Minecraft sürümü indirilemedi![/red]")
+                        input("[dim]Enter ile devam...[/dim]")
+                        return False
+                
+                progress.update(task, description=f"[cyan]⚙️  Forge kuruluyor (1-2 dakika)...", advance=10)
                 
                 # launcher_profiles.json oluştur
                 launcher_profiles_path = self.minecraft_dir / "launcher_profiles.json"
@@ -6482,40 +6491,37 @@ class MinecraftLauncher:
             
             self.console.print()
             self.console.print("[bold]Seçenekler:[/bold]")
-            self.console.print("  [cyan]1[/cyan]  🔍 Sürüm Ara")
-            self.console.print("  [cyan]2[/cyan]  📋 Sürüm Listesi")
-            self.console.print("  [cyan]3[/cyan]  📊 Popüler Sürümler")
-            self.console.print("  [cyan]4[/cyan]  🎮 Snapshots")
-            self.console.print("  [cyan]5[/cyan]  🔧 Release Candidates")
-            self.console.print("  [cyan]6[/cyan]  📈 En Güncel Sürümler")
-            self.console.print("  [cyan]7[/cyan]  🔧 Forge Sürümleri")
-            self.console.print("  [cyan]8[/cyan]  ⚡ OptiFine Sürümleri")
-            self.console.print("  [cyan]9[/cyan]  🧵 Fabric Sürümleri")
+            self.console.print("  [cyan]1[/cyan]  📋 Tüm Sürümler")
+            self.console.print("  [cyan]2[/cyan]  📊 Popüler Sürümler")
+            self.console.print("  [cyan]3[/cyan]  🎮 Snapshots")
+            self.console.print("  [cyan]4[/cyan]  🔧 Release Candidates")
+            self.console.print("  [cyan]5[/cyan]  📈 En Güncel Sürümler")
+            self.console.print("  [cyan]6[/cyan]  ⚒️  Forge Sürümleri")
+            self.console.print("  [cyan]7[/cyan]  🧵 Fabric Sürümleri")
+            self.console.print("  [cyan]8[/cyan]  ⚡ OptiFine Bilgisi")
             self.console.print()
             self.console.print("  [dim]0[/dim]  Geri")
             
-            choice = Prompt.ask("\n[cyan]>[/cyan]", choices=["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"])
+            choice = Prompt.ask("\n[cyan]>[/cyan]", choices=["0", "1", "2", "3", "4", "5", "6", "7", "8"])
             
             if choice == "0":
                 break
             elif choice == "1":
-                self._search_versions()
-            elif choice == "2":
                 self._show_versions_menu()
-            elif choice == "3":
+            elif choice == "2":
                 self._show_popular_versions()
-            elif choice == "4":
+            elif choice == "3":
                 self._show_snapshot_versions()
-            elif choice == "5":
+            elif choice == "4":
                 self._show_release_candidate_versions()
-            elif choice == "6":
+            elif choice == "5":
                 self._show_latest_versions()
-            elif choice == "7":
+            elif choice == "6":
                 self._show_forge_versions()
+            elif choice == "7":
+                self._show_fabric_versions()
             elif choice == "8":
                 self._show_optifine_versions()
-            elif choice == "9":
-                self._show_fabric_versions()
     
     def _search_versions(self):
         """Sürüm arama"""
