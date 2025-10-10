@@ -1,6 +1,14 @@
-# Changelog v3.2.1 - Final Polish & Bug Fixes
+# Changelog v3.2.1 - Critical Forge/Fabric Fix
 
-## 🔧 Bug Fixes & Polish
+## 🔧 CRITICAL FIXES
+
+### ✅ **Forge/Fabric Now Download As Full Versions**
+- **FIXED**: Forge now calls `_download_forge()` with base MC download
+- **FIXED**: Fabric now calls `_download_fabric()` with base MC download
+- Both mod loaders now install as complete Minecraft versions
+- Appear in launch menu immediately after installation
+
+## 🐛 Bug Fixes & Polish
 
 ### ✅ **Version Display**
 - Verified all version numbers are consistent

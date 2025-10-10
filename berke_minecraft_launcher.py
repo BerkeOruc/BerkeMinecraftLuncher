@@ -6886,8 +6886,15 @@ class MinecraftLauncher:
                 self.console.print(f"\n[cyan]Seçilen: {selected_version['name']}[/cyan]")
                 
                 if Confirm.ask(f"\n[cyan]{selected_version['name']} indirilsin ve kurulsun mu?[/cyan]", default=True):
-                    # Forge version ID'den kurulum yap
-                    self._install_forge(selected_version['id'])
+                    # Forge version ID'i parse et: "1.21.1-forge-50.0.0" → mc="1.21.1", forge="50.0.0"
+                    parts = selected_version['id'].split('-')
+                    if len(parts) >= 3 and parts[1] == 'forge':
+                        minecraft_version = parts[0]
+                        forge_version = '-'.join(parts[2:])
+                        self._download_forge(minecraft_version, forge_version)
+                    else:
+                        self.console.print("[red]❌ Geçersiz Forge version formatı![/red]")
+                        input("[dim]Enter...[/dim]")
             else:
                 self.console.print("[red]❌ Geçersiz seçim![/red]")
                 input("[dim]Enter...[/dim]")
@@ -6985,9 +6992,15 @@ class MinecraftLauncher:
                 self.console.print(f"\n[cyan]Seçilen: {selected_version['name']}[/cyan]")
                 
                 if Confirm.ask(f"\n[cyan]{selected_version['name']} indirilsin ve kurulsun mu?[/cyan]", default=True):
-                    # Fabric için MC version'ı parse et (örn: "1.21.1-fabric-0.16.0" -> "1.21.1")
-                    mc_version = selected_version['id'].split('-')[0]
-                    self._install_fabric(mc_version)
+                    # Fabric version ID'i parse et: "1.21.1-fabric-0.16.0" → mc="1.21.1", fabric="0.16.0"
+                    parts = selected_version['id'].split('-')
+                    if len(parts) >= 3 and parts[1] == 'fabric':
+                        minecraft_version = parts[0]
+                        fabric_version = '-'.join(parts[2:])
+                        self._download_fabric(minecraft_version, fabric_version)
+                    else:
+                        self.console.print("[red]❌ Geçersiz Fabric version formatı![/red]")
+                        input("[dim]Enter...[/dim]")
             else:
                 self.console.print("[red]❌ Geçersiz seçim![/red]")
                 input("[dim]Enter...[/dim]")
