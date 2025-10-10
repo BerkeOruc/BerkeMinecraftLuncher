@@ -3,13 +3,57 @@
 # BerkeMC - Advanced Minecraft Launcher
 # Main Entry Point
 
-VERSION="2.12.0"
+VERSION="3.0.0"
 
 # Check for version commands
 if [ "$1" = "version" ] || [ "$1" = "--version" ] || [ "$1" = "-v" ]; then
     echo "🎮 BerkeMC v${VERSION}"
     echo "📦 Advanced Minecraft Launcher"
     echo "🔗 https://github.com/BerkeOruc/berkemc"
+    exit 0
+fi
+
+# Check for reinstall command
+if [ "$1" = "reinstall" ] || [ "$1" = "--reinstall" ]; then
+    echo "🔄 BerkeMC Yeniden Kuruluyor..."
+    echo ""
+    echo "İşlemler:"
+    echo "  1. Tüm ayar dosyaları silinecek"
+    echo "  2. BerkeMC paketi kaldırılacak"
+    echo "  3. BerkeMC yeniden kurulacak"
+    echo "  ⚠️  Minecraft dizini (~/.minecraft/) korunacak"
+    echo ""
+    read -p "Devam etmek istiyor musunuz? (e/H): " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Ee]$ ]]; then
+        echo "🗑️  Ayar dosyaları siliniyor..."
+        rm -rf ~/.berke_minecraft_launcher/
+        echo "✅ Ayar dosyaları silindi!"
+        
+        echo "📦 Paket kaldırılıyor..."
+        if command -v yay &> /dev/null; then
+            yay -Rns berkemc --noconfirm 2>/dev/null
+        elif command -v paru &> /dev/null; then
+            paru -Rns berkemc --noconfirm 2>/dev/null
+        elif command -v pacman &> /dev/null; then
+            sudo pacman -Rns berkemc --noconfirm 2>/dev/null
+        fi
+        
+        echo "📦 Yeniden kuruluyor..."
+        if command -v yay &> /dev/null; then
+            yay -S berkemc --noconfirm
+        elif command -v paru &> /dev/null; then
+            paru -S berkemc --noconfirm
+        else
+            echo "❌ Yay veya Paru bulunamadı!"
+            exit 1
+        fi
+        
+        echo "✅ BerkeMC başarıyla yeniden kuruldu!"
+        echo "🎮 Şimdi 'berkemc' yazarak başlatabilirsiniz!"
+    else
+        echo "❌ Yeniden kurulum iptal edildi."
+    fi
     exit 0
 fi
 
@@ -86,6 +130,7 @@ if [ "$1" = "help" ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
     echo "  berkemc                    - Launcher'ı başlat"
     echo "  berkemc version, -v        - Sürüm bilgisi göster"
     echo "  berkemc update             - Son sürüme güncelle"
+    echo "  berkemc reinstall          - Temiz kurulum (ayarlar sıfırlanır)"
     echo "  berkemc uninstall          - BerkeMC'yi kaldır"
     echo "  berkemc help, -h           - Bu yardım menüsünü göster"
     echo ""
@@ -98,6 +143,7 @@ if [ "$1" = "help" ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
     echo "  🖥️  Wayland/Hyprland tam desteği"
     echo "  🎯 Asset doğrulama ve otomatik onarım"
     echo "  📊 Performans izleme (FPS, RAM, CPU)"
+    echo "  🌍 Çoklu dil desteği (TR/EN)"
     echo ""
     echo "Repo: https://github.com/BerkeOruc/berkemc"
     echo "AUR:  https://aur.archlinux.org/packages/berkemc"

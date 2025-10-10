@@ -32,6 +32,14 @@ from rich import box
 import colorama
 from colorama import Fore, Back, Style
 
+# Version bilgisi import et
+try:
+    from version import __version__, get_full_version_string
+except ImportError:
+    __version__ = "3.0.0"
+    def get_full_version_string():
+        return f"BerkeMC v{__version__}"
+
 # Colorama'yı başlat
 colorama.init(autoreset=True)
 
@@ -948,9 +956,9 @@ class MinecraftLauncher:
     
     def _create_banner(self) -> Panel:
         """B Logo Banner - Minimal ve Şık"""
-        logo = """
-[bold cyan]██████╗ [/bold cyan] [bold white]BERKE MINECRAFT LAUNCHER[/bold white]
-[bold cyan]██╔══██╗[/bold cyan] [dim]v2.4.0 - Ultra Fast Edition[/dim]
+        logo = f"""
+[bold cyan]██████╗ [/bold cyan] [bold white]BERKEMC[/bold white]
+[bold cyan]██╔══██╗[/bold cyan] [dim]v{__version__} - Advanced Minecraft Launcher[/dim]
 [bold cyan]██████╔╝[/bold cyan]
 [bold cyan]██╔══██╗[/bold cyan]
 [bold cyan]██████╔╝[/bold cyan]
@@ -3322,14 +3330,18 @@ class MinecraftLauncher:
             self.console.print()
             
             # Kompakt ayarlar listesi
+            current_lang = self.config.get('language', 'tr')
+            lang_name = "🇹🇷 Türkçe" if current_lang == 'tr' else "🇬🇧 English"
+            
             self.console.print(f"  [cyan]1[/cyan]  Kullanici Adi        [dim]{self.config['username']}[/dim]")
-            self.console.print(f"  [cyan]2[/cyan]  Bellek               [dim]{self.config['memory']} GB[/dim]")
-            self.console.print(f"  [cyan]3[/cyan]  Pencere Boyutu       [dim]{self.config['window_width']}x{self.config['window_height']}[/dim]")
-            self.console.print(f"  [cyan]4[/cyan]  Tam Ekran            [dim]{'Evet' if self.config['fullscreen'] else 'Hayir'}[/dim]")
-            self.console.print(f"  [cyan]5[/cyan]  Grafik Opt.          [dim]{'Acik' if self.config['optimize_graphics'] else 'Kapali'}[/dim]")
-            self.console.print(f"  [cyan]6[/cyan]  Mod Destegi          [dim]{'Acik' if self.config['enable_mods'] else 'Kapali'}[/dim]")
+            self.console.print(f"  [cyan]2[/cyan]  Dil / Language       [dim]{lang_name}[/dim]")
+            self.console.print(f"  [cyan]3[/cyan]  Bellek               [dim]{self.config['memory']} GB[/dim]")
+            self.console.print(f"  [cyan]4[/cyan]  Pencere Boyutu       [dim]{self.config['window_width']}x{self.config['window_height']}[/dim]")
+            self.console.print(f"  [cyan]5[/cyan]  Tam Ekran            [dim]{'Evet' if self.config['fullscreen'] else 'Hayir'}[/dim]")
+            self.console.print(f"  [cyan]6[/cyan]  Grafik Opt.          [dim]{'Acik' if self.config['optimize_graphics'] else 'Kapali'}[/dim]")
+            self.console.print(f"  [cyan]7[/cyan]  Mod Destegi          [dim]{'Acik' if self.config['enable_mods'] else 'Kapali'}[/dim]")
             self.console.print()
-            self.console.print(f"  [cyan]7[/cyan]  Java Yönetimi")
+            self.console.print(f"  [cyan]8[/cyan]  Java Yönetimi")
             self.console.print(f"  [cyan]9[/cyan]  Debug Modu           [dim]{'Acik' if self.config.get('debug', False) else 'Kapali'}[/dim]")
             self.console.print()
             self.console.print(f"  [cyan]10[/cyan] Ayarlari Sifirla")
@@ -3348,6 +3360,21 @@ class MinecraftLauncher:
                 self.console.print(f"[green]✅ Kullanıcı adı güncellendi: {new_username}[/green]")
                 input("[dim]Enter...[/dim]")
             elif choice == "2":
+                # Dil seçimi
+                self.console.print("\n[bold cyan]🌍 DİL SEÇİMİ / LANGUAGE SELECTION[/bold cyan]\n")
+                self.console.print("  [cyan]1[/cyan]  🇹🇷 Türkçe")
+                self.console.print("  [cyan]2[/cyan]  🇬🇧 English")
+                lang_choice = Prompt.ask("\n[cyan]Dil seçin / Select language[/cyan]", choices=["1", "2"])
+                
+                new_lang = "tr" if lang_choice == "1" else "en"
+                self.config["language"] = new_lang
+                self._save_config()
+                
+                lang_name = "🇹🇷 Türkçe" if new_lang == "tr" else "🇬🇧 English"
+                self.console.print(f"[green]✅ Dil değiştirildi: {lang_name}[/green]")
+                self.console.print(f"[yellow]ℹ️  Tam etki için launcher'ı yeniden başlatın[/yellow]")
+                input("[dim]Enter...[/dim]")
+            elif choice == "3":
                 memory_options = ["auto", "2", "4", "6", "8", "12", "16"]
                 memory_table = Table(title="💾 Bellek Seçimi", show_header=True, header_style="bold blue")
                 memory_table.add_column("Seçenek", style="cyan")
@@ -3363,7 +3390,7 @@ class MinecraftLauncher:
                 self._save_config()
                 self.console.print(f"[green]✅ Bellek ayarı güncellendi: {self.config['memory']}[/green]")
                 input("[dim]Enter...[/dim]")
-            elif choice == "3":
+            elif choice == "4":
                 width = int(Prompt.ask("Pencere genişliği", default=str(self.config["window_width"])))
                 height = int(Prompt.ask("Pencere yüksekliği", default=str(self.config["window_height"])))
                 self.config["window_width"] = width
@@ -3371,22 +3398,22 @@ class MinecraftLauncher:
                 self._save_config()
                 self.console.print(f"[green]✅ Pencere boyutu güncellendi: {width}x{height}[/green]")
                 input("[dim]Enter...[/dim]")
-            elif choice == "4":
+            elif choice == "5":
                 self.config["fullscreen"] = not self.config["fullscreen"]
                 self._save_config()
                 self.console.print(f"[green]✅ Tam ekran: {'Açık' if self.config['fullscreen'] else 'Kapalı'}[/green]")
                 input("[dim]Enter...[/dim]")
-            elif choice == "5":
+            elif choice == "6":
                 self.config["optimize_graphics"] = not self.config["optimize_graphics"]
                 self._save_config()
                 self.console.print(f"[green]✅ Grafik optimizasyonu: {'Açık' if self.config['optimize_graphics'] else 'Kapalı'}[/green]")
                 input("[dim]Enter...[/dim]")
-            elif choice == "6":
+            elif choice == "7":
                 self.config["enable_mods"] = not self.config["enable_mods"]
                 self._save_config()
                 self.console.print(f"[green]✅ Mod desteği: {'Açık' if self.config['enable_mods'] else 'Kapalı'}[/green]")
                 input("[dim]Enter...[/dim]")
-            elif choice == "7":
+            elif choice == "8":
                 self._show_java_management_menu()
             elif choice == "9":
                 self.config["debug"] = not self.config.get("debug", False)
@@ -4973,7 +5000,7 @@ class MinecraftLauncher:
         # Kompakt banner
         self.console.print(Panel(
             "[bold cyan]BERKE MINECRAFT LAUNCHER[/bold cyan]\n"
-            "[white]v2.4.0 - Terminal Edition[/white]\n"
+            f"[white]v{__version__} - Terminal Edition[/white]\n"
             "[dim]Gelistirici: Berke Oruc (2009)[/dim]",
             border_style="cyan",
             padding=(1, 2)
@@ -4997,7 +5024,7 @@ class MinecraftLauncher:
         
         info_table.add_row("Gelistirici", "Berke Oruc", "Surumler", f"{installed_count} adet")
         info_table.add_row("Dogum", "2009", "Java", f"v{java_ver}" if java_ver else "N/A")
-        info_table.add_row("Platform", "Arch Linux", "Launcher", "v2.4.0")
+        info_table.add_row("Platform", "Arch Linux", "Launcher", f"v{__version__}")
         
         self.console.print(Panel(info_table, title="[bold white]BILGILER[/bold white]", border_style="cyan", padding=(1, 1)))
         
@@ -7089,7 +7116,7 @@ class MinecraftLauncher:
 [bold cyan]██████╔╝[/bold cyan] 
 [bold cyan]██╔══██╗[/bold cyan] [yellow]Bay Bay![/yellow]
 [bold cyan]██████╔╝[/bold cyan] 
-[bold cyan]╚═════╝ [/bold cyan] [dim]Berke Minecraft Launcher v2.3[/dim]
+[bold cyan]╚═════╝ [/bold cyan] [dim]BerkeMC v{__version__}[/dim]
                 """
                 self.console.print(Panel(
                     goodbye_msg.strip(),
