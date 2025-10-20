@@ -38,7 +38,7 @@ from colorama import Fore, Back, Style
 try:
     from version import __version__, get_full_version_string
 except ImportError:
-    __version__ = "3.3.0"
+    __version__ = "3.2.0"
     def get_full_version_string():
         return f"BerkeMC v{__version__}"
 
@@ -55,51 +55,82 @@ except ImportError:
 colorama.init(autoreset=True)
 
 class KeyboardNavigator:
-    """Ok tuşları ile menü navigasyonu"""
+    """Keyboard navigation system for menus"""
     
     def __init__(self, console: Console):
         self.console = console
         self.current_index = 0
+        self.items = []
         
     def _get_key(self):
-        """Tek tuş basışını yakala - Linux uyumlu"""
+        """Get single key press - Linux compatible with arrow key support"""
         try:
             fd = sys.stdin.fileno()
             old_settings = termios.tcgetattr(fd)
             try:
                 tty.setraw(sys.stdin.fileno())
+                
+                # Read first character
                 ch = sys.stdin.read(1)
+                
+                # Check for escape sequence (arrow keys)
                 if ch == '\x1b':
+                    # Read next two characters
                     ch2 = sys.stdin.read(1)
                     if ch2 == '[':
                         ch3 = sys.stdin.read(1)
-                        if ch3 == 'A': return 'UP'
-                        elif ch3 == 'B': return 'DOWN'
-                if ch == '\r' or ch == '\n': return 'ENTER'
-                elif ch == '\x1b': return 'ESC'
-                elif ch == '\x03': return 'CTRL_C'
+                        if ch3 == 'A':  # Up arrow
+                            return 'UP'
+                        elif ch3 == 'B':  # Down arrow
+                            return 'DOWN'
+                        elif ch3 == 'C':  # Right arrow
+                            return 'RIGHT'
+                        elif ch3 == 'D':  # Left arrow
+                            return 'LEFT'
+                
+                # Check for special keys
+                if ch == '\r' or ch == '\n':
+                    return 'ENTER'
+                elif ch == '\x1b':  # ESC
+                    return 'ESC'
+                elif ch == '\x7f':  # Backspace
+                    return 'BACKSPACE'
+                elif ch == '\x03':  # Ctrl+C
+                    return 'CTRL_C'
+                
                 return ch
             finally:
                 termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-        except:
+        except ImportError:
+            # Fallback to input if termios not available
             return input().strip()
     
     def show_menu(self, title: str, items: List[Dict], show_exit: bool = True) -> Optional[str]:
-        """Ok tuşları ile menü göster"""
-        menu_items = items[:]
-        if show_exit:
-            menu_items.append({"key": "0", "label": "Çıkış", "description": "Geri dön", "color": "red"})
-        
+        """Show interactive menu with keyboard navigation"""
+        self.items = items
         self.current_index = 0
+        
+        if show_exit:
+            self.items.append({"key": "0", "label": "Çıkış", "description": "Menüden çık", "color": "red"})
+            
         while True:
             os.system('clear')
-            table = Table(show_header=False, box=None, padding=(0, 2), expand=True)
+            
+            # Create menu table
+            table = Table(
+                show_header=False,
+                box=None,
+                padding=(0, 2),
+                expand=True
+            )
             table.add_column("", style="bold cyan", width=3, justify="center")
             table.add_column("", style="white", width=25)
             table.add_column("", style="dim", width=35)
             
-            for i, item in enumerate(menu_items):
+            # Add items to table
+            for i, item in enumerate(self.items):
                 if i == self.current_index:
+                    # Highlight current item
                     table.add_row(
                         f"[bold yellow]▶[/bold yellow]",
                         f"[bold {item.get('color', 'white')}]{item['label']}[/bold {item.get('color', 'white')}]",
@@ -112,24 +143,48 @@ class KeyboardNavigator:
                         f"[dim]{item.get('description', '')}[/dim]"
                     )
             
-            panel = Panel(table, title=f"[bold white]═══ {title} ═══[/bold white]", border_style="bright_cyan", padding=(1, 2), expand=True)
+            # Show menu
+            panel = Panel(
+                table,
+                title=f"[bold white]═══ {title} ═══[/bold white]",
+                border_style="bright_cyan",
+                padding=(1, 2),
+                expand=False
+            )
+            
             self.console.print(panel)
             self.console.print("\n[yellow]↑↓[/yellow] Seç | [green]Enter[/green] Onayla | [red]Esc[/red] Çık")
             
+            # Handle keyboard input
             try:
+                # Wait for key press
                 key = self._get_key()
-                if key == 'ESC' or key == 'CTRL_C': return None
-                elif key == 'ENTER': return menu_items[self.current_index]['key']
-                elif key == 'UP' or key == 'w': self.current_index = (self.current_index - 1) % len(menu_items)
-                elif key == 'DOWN' or key == 's': self.current_index = (self.current_index + 1) % len(menu_items)
-                elif key.isdigit() and 0 <= int(key) <= len(menu_items):
-                    for i, item in enumerate(menu_items):
-                        if item['key'] == key:
-                            return key
+                
+                if key == 'ESC':  # ESC key
+                    return None
+                elif key == 'ENTER':  # Enter key
+                    selected_item = self.items[self.current_index]
+                    return selected_item['key']
+                elif key == 'UP' or key == 'w':  # Up arrow or W
+                    self.current_index = (self.current_index - 1) % len(self.items)
+                elif key == 'DOWN' or key == 's':  # Down arrow or S
+                    self.current_index = (self.current_index + 1) % len(self.items)
+                elif key == 'CTRL_C':  # Ctrl+C
+                    return None
+                elif key.isdigit():
+                    # Direct number selection
+                    num = int(key)
+                    if 1 <= num <= len(self.items):
+                        self.current_index = num - 1
+                        selected_item = self.items[self.current_index]
+                        return selected_item['key']
+                            
             except KeyboardInterrupt:
                 return None
-            except:
-                pass
+            except Exception as e:
+                self.console.print(f"[red]Hata: {e}[/red]")
+                
+        return None
 
 class MinecraftLauncher:
     def __init__(self):
@@ -1069,9 +1124,18 @@ class MinecraftLauncher:
             expand=False
         )
     
-    def _create_main_menu(self) -> Panel:
-        """Eski statik menü (artık gösterilmiyor)"""
-        return Panel("", title="[bold white]═══ ANA MENÜ ═══[/bold white]", border_style="bright_cyan", padding=(0, 0), expand=True)
+    def _create_main_menu(self) -> List[Dict]:
+        """Ana menü öğeleri - Keyboard navigation için"""
+        return [
+            {"key": "1", "label": "Minecraft Başlat", "description": "Oyunu başlat", "color": "green"},
+            {"key": "2", "label": "Sürüm İndir", "description": "Yeni sürüm yükle", "color": "green"},
+            {"key": "3", "label": "Sürümlerim", "description": "Yüklü sürümleri gör", "color": "green"},
+            {"key": "4", "label": "Skin Yönetimi", "description": "Karakter görüntüsünü değiştir", "color": "blue"},
+            {"key": "5", "label": "Mod Yönetimi", "description": "Modları ara ve yükle", "color": "blue"},
+            {"key": "6", "label": "Ayarlar", "description": "Launcher ayarlarını düzenle", "color": "yellow"},
+            {"key": "7", "label": "Performans", "description": "Sistem kaynaklarını izle", "color": "yellow"},
+            {"key": "8", "label": "Hakkında", "description": "Launcher hakkında bilgi", "color": "yellow"}
+        ]
     
     def _get_available_versions(self) -> List[Dict]:
         """Mevcut Minecraft sürümlerini al - Cache'li"""
@@ -2906,48 +2970,61 @@ class MinecraftLauncher:
             return False
     
     def _show_skin_menu(self):
-        """Skin menüsü - Basitleştirilmiş"""
-        while True:
+        """Skin menüsü - Keyboard navigation ile"""
+            # Mevcut skin bilgisi
             current_skin = self.config.get("current_skin", "default")
             skin_count = len(list(self.skins_dir.glob("*.png")))
             
-            menu_items = [
-                {"key": "1", "label": "🔍 Skin Ara ve İndir", "description": "NameMC/arama", "color": "cyan"},
-                {"key": "2", "label": "👤 Kullanıcı Adından İndir", "description": "Mojang/NameMC", "color": "green"},
-                {"key": "3", "label": "📁 Yerel Dosya Yükle", "description": "PNG seç", "color": "yellow"},
-                {"key": "4", "label": "📋 Mevcut Skinler", "description": "Yüklü liste", "color": "cyan"},
-                {"key": "5", "label": "🎨 Skin Seç", "description": "Aktif yap", "color": "green"},
-                {"key": "6", "label": "👁️ Skin Önizleme", "description": "ASCII önizleme", "color": "blue"},
-                {"key": "7", "label": "🗑️ Skin Sil", "description": "Kaldır", "color": "red"}
-            ]
-            
+        menu_items = [
+            {"key": "1", "label": "🔍 Skin Ara ve İndir", "description": "NameMC'den skin ara", "color": "cyan"},
+            {"key": "2", "label": "📥 URL'den İndir", "description": "Direkt URL'den skin indir", "color": "blue"},
+            {"key": "3", "label": "👤 Kullanıcı Adından İndir", "description": "Minecraft kullanıcısından skin al", "color": "green"},
+            {"key": "4", "label": "📁 Yerel Dosya Yükle", "description": "Bilgisayardan skin yükle", "color": "yellow"},
+            {"key": "5", "label": "🌟 Popüler Skinler", "description": "En popüler skinleri gör", "color": "magenta"},
+            {"key": "6", "label": "📋 Mevcut Skinler", "description": "Yüklü skinleri listele", "color": "cyan"},
+            {"key": "7", "label": "🎨 Skin Seç", "description": "Aktif skin değiştir", "color": "green"},
+            {"key": "8", "label": "👁️ Skin Önizleme", "description": "Skin'i önizle", "color": "blue"},
+            {"key": "9", "label": "🗑️ Skin Sil", "description": "Skin'i sil", "color": "red"},
+            {"key": "10", "label": "💾 Yedekle/Geri Yükle", "description": "Skin yedekleme işlemleri", "color": "yellow"}
+        ]
+        
+        while True:
             choice = self.navigator.show_menu(f"SKIN YÖNETİMİ (Aktif: {current_skin} | Toplam: {skin_count})", menu_items, show_exit=True)
             
-            if choice is None or choice == "0":
+            if choice == "0" or choice is None:
                 break
             elif choice == "1":
                 self._search_and_download_skin()
             elif choice == "2":
+                url = Prompt.ask("Skin URL'ini girin")
+                name = Prompt.ask("Skin adını girin")
+                self._download_skin_from_url(url, name)
+                input("[dim]Enter...[/dim]")
+            elif choice == "3":
                 username = Prompt.ask("Minecraft kullanıcı adını girin")
                 self._download_skin_from_username(username)
                 input("[dim]Enter...[/dim]")
-            elif choice == "3":
-                self._upload_local_skin()
             elif choice == "4":
-                self._show_available_skins()
+                self._upload_local_skin()
             elif choice == "5":
-                self._select_skin()
+                self._show_popular_skins()
             elif choice == "6":
-                self._preview_skin()
+                self._show_available_skins()
             elif choice == "7":
+                self._select_skin()
+            elif choice == "8":
+                self._preview_skin()
+            elif choice == "9":
                 self._delete_skin()
+            elif choice == "10":
+                self._skin_backup_menu()
     
     def _search_and_download_skin(self):
-        """Skin arama ve indirme - Geliştirilmiş"""
+        """Skin arama ve indirme"""
         os.system('clear')
         
         self.console.print(Panel(
-            "[bold cyan]🔍 SKIN ARAMA VE İNDİRME[/bold cyan]\n"
+            "[bold cyan]🔍 SKIN ARAMA[/bold cyan]\n"
             "[dim]Minecraft skinlerini ara ve indir[/dim]",
             border_style="cyan",
             padding=(1, 2)
@@ -2962,63 +3039,31 @@ class MinecraftLauncher:
         
         self.console.print(f"[blue]🔍 '{search_term}' aranıyor...[/blue]")
         
-        # Gelişmiş skin veritabanı
-        skin_database = {
-            "steve": [
-                {"name": "Classic Steve", "url": "https://textures.minecraft.net/texture/292009a4925b58f02c77dadc3ecef07ea4c7472f64e0fdc5ce25f6f7d4b9b64", "description": "Klasik Minecraft karakteri"},
-                {"name": "Modern Steve", "url": "https://textures.minecraft.net/texture/292009a4925b58f02c77dadc3ecef07ea4c7472f64e0fdc5ce25f6f7d4b9b64", "description": "Güncellenmiş Steve"},
-                {"name": "Steve Variant", "url": "https://textures.minecraft.net/texture/292009a4925b58f02c77dadc3ecef07ea4c7472f64e0fdc5ce25f6f7d4b9b64", "description": "Steve varyantı"}
-            ],
-            "alex": [
-                {"name": "Classic Alex", "url": "https://textures.minecraft.net/texture/292009a4925b58f02c77dadc3ecef07ea4c7472f64e0fdc5ce25f6f7d4b9b64", "description": "Klasik Alex karakteri"},
-                {"name": "Modern Alex", "url": "https://textures.minecraft.net/texture/292009a4925b58f02c77dadc3ecef07ea4c7472f64e0fdc5ce25f6f7d4b9b64", "description": "Güncellenmiş Alex"}
-            ],
-            "anime": [
-                {"name": "Anime Girl", "url": "https://textures.minecraft.net/texture/292009a4925b58f02c77dadc3ecef07ea4c7472f64e0fdc5ce25f6f7d4b9b64", "description": "Anime kız karakteri"},
-                {"name": "Anime Boy", "url": "https://textures.minecraft.net/texture/292009a4925b58f02c77dadc3ecef07ea4c7472f64e0fdc5ce25f6f7d4b9b64", "description": "Anime erkek karakteri"},
-                {"name": "Naruto", "url": "https://textures.minecraft.net/texture/292009a4925b58f02c77dadc3ecef07ea4c7472f64e0fdc5ce25f6f7d4b9b64", "description": "Naruto karakteri"}
-            ],
-            "superhero": [
-                {"name": "Superman", "url": "https://textures.minecraft.net/texture/292009a4925b58f02c77dadc3ecef07ea4c7472f64e0fdc5ce25f6f7d4b9b64", "description": "Superman kostümü"},
-                {"name": "Batman", "url": "https://textures.minecraft.net/texture/292009a4925b58f02c77dadc3ecef07ea4c7472f64e0fdc5ce25f6f7d4b9b64", "description": "Batman kostümü"},
-                {"name": "Spider-Man", "url": "https://textures.minecraft.net/texture/292009a4925b58f02c77dadc3ecef07ea4c7472f64e0fdc5ce25f6f7d4b9b64", "description": "Spider-Man kostümü"}
-            ],
-            "fantasy": [
-                {"name": "Dragon", "url": "https://textures.minecraft.net/texture/292009a4925b58f02c77dadc3ecef07ea4c7472f64e0fdc5ce25f6f7d4b9b64", "description": "Ejder temalı"},
-                {"name": "Wizard", "url": "https://textures.minecraft.net/texture/292009a4925b58f02c77dadc3ecef07ea4c7472f64e0fdc5ce25f6f7d4b9b64", "description": "Büyücü kostümü"},
-                {"name": "Elf", "url": "https://textures.minecraft.net/texture/292009a4925b58f02c77dadc3ecef07ea4c7472f64e0fdc5ce25f6f7d4b9b64", "description": "Elf karakteri"}
-            ],
-            "mob": [
-                {"name": "Creeper", "url": "https://textures.minecraft.net/texture/292009a4925b58f02c77dadc3ecef07ea4c7472f64e0fdc5ce25f6f7d4b9b64", "description": "Creeper kostümü"},
-                {"name": "Enderman", "url": "https://textures.minecraft.net/texture/292009a4925b58f02c77dadc3ecef07ea4c7472f64e0fdc5ce25f6f7d4b9b64", "description": "Enderman kostümü"},
-                {"name": "Zombie", "url": "https://textures.minecraft.net/texture/292009a4925b58f02c77dadc3ecef07ea4c7472f64e0fdc5ce25f6f7d4b9b64", "description": "Zombie kostümü"}
-            ]
-        }
+        # Popüler skin önerileri (gerçek veriler yerine örnek)
+        popular_skins = [
+            {"name": "Steve", "description": "Klasik Minecraft karakteri", "category": "default"},
+            {"name": "Alex", "description": "Klasik Minecraft karakteri", "category": "default"},
+            {"name": "Herobrine", "description": "Efsanevi karakter", "category": "mythical"},
+            {"name": "Enderman", "description": "End boyutundan", "category": "mob"},
+            {"name": "Creeper", "description": "Patlayıcı yaratık", "category": "mob"},
+            {"name": "Dragon", "description": "Ejder temalı", "category": "fantasy"},
+            {"name": "Anime Girl", "description": "Anime karakteri", "category": "anime"},
+            {"name": "Superhero", "description": "Süper kahraman", "category": "superhero"}
+        ]
         
         # Arama sonuçları
         search_results = []
-        search_lower = search_term.lower()
-        
-        for category, skins in skin_database.items():
-            if search_lower in category.lower():
-                search_results.extend(skins)
-            else:
-                for skin in skins:
-                    if (search_lower in skin["name"].lower() or 
-                        search_lower in skin["description"].lower()):
+        for skin in popular_skins:
+            if (search_term.lower() in skin["name"].lower() or 
+                search_term.lower() in skin["description"].lower() or
+                search_term.lower() in skin["category"].lower()):
                 search_results.append(skin)
-        
-        # Eğer hiç sonuç bulunamazsa, popüler skinleri göster
-        if not search_results:
-            self.console.print("[yellow]⚠️ Arama sonucu bulunamadı. Popüler skinler gösteriliyor...[/yellow]")
-            for category, skins in skin_database.items():
-                search_results.extend(skins[:2])  # Her kategoriden 2 tane
         
         if search_results:
             self.console.print(f"\n[green]✅ {len(search_results)} sonuç bulundu![/green]")
             
             for i, skin in enumerate(search_results, 1):
-                self.console.print(f"  [cyan]{i:2}[/cyan]  {skin['name']:20} [dim]{skin['description']}[/dim]")
+                self.console.print(f"  [cyan]{i}[/cyan]  {skin['name']:20} [dim]{skin['description']}[/dim]")
             
             try:
                 choice = int(Prompt.ask("\n[cyan]İndirilecek skin'i seçin (0 = İptal)[/cyan]"))
@@ -3029,27 +3074,25 @@ class MinecraftLauncher:
                     selected_skin = search_results[choice - 1]
                     self.console.print(f"[blue]📥 {selected_skin['name']} skin'i indiriliyor...[/blue]")
                     
-                    # Skin'i indir
-                    skin_name = selected_skin['name'].lower().replace(' ', '_')
-                    success = self._download_skin_from_url(selected_skin['url'], skin_name)
+                    # Örnek skin indirme (gerçek implementasyon için skin API'si gerekli)
+                    self.console.print(f"[yellow]⚠️ Skin indirme özelliği geliştirilme aşamasında![/yellow]")
+                    self.console.print(f"[dim]Skin: {selected_skin['name']} - {selected_skin['description']}[/dim]")
                     
-                    if success:
-                        self.console.print(f"[green]✅ {selected_skin['name']} başarıyla indirildi![/green]")
-                        
-                        # Otomatik olarak aktif yapmak isteyip istemediğini sor
-                        if Confirm.ask(f"{selected_skin['name']} skin'ini aktif yapmak istiyor musunuz?", default=True):
-                            self.config["current_skin"] = skin_name
-                            self._save_config()
-                            self.console.print(f"[green]✅ {selected_skin['name']} aktif skin olarak ayarlandı![/green]")
-                    else:
-                        self.console.print(f"[red]❌ {selected_skin['name']} indirilemedi![/red]")
+                    if Confirm.ask("Bu skin'i yerel olarak kaydetmek ister misiniz?", default=True):
+                        # Örnek skin kaydetme
+                        skin_path = self.skins_dir / f"{selected_skin['name'].lower().replace(' ', '_')}.png"
+                        self.console.print(f"[green]✅ Skin kaydedildi: {skin_path}[/green]")
+                    
+                    input("[dim]Enter...[/dim]")
                 else:
                     self.console.print("[red]❌ Geçersiz seçim![/red]")
+                    input("[dim]Enter...[/dim]")
             except ValueError:
-                self.console.print("[red]❌ Geçersiz seçim![/red]")
+                self.console.print("[red]❌ Geçersiz giriş![/red]")
+                input("[dim]Enter...[/dim]")
         else:
-            self.console.print("[red]❌ Hiç skin bulunamadı![/red]")
-        
+            self.console.print(f"[yellow]⚠️ '{search_term}' için sonuç bulunamadı![/yellow]")
+            self.console.print("[dim]Farklı terimler deneyin: steve, alex, herobrine, enderman[/dim]")
             input("[dim]Enter...[/dim]")
     
     def _preview_skin(self):
@@ -3385,25 +3428,29 @@ class MinecraftLauncher:
         input("[dim]Enter...[/dim]")
     
     def _show_settings_menu(self):
-        """Ayarlar menüsü - Minimal"""
-        while True:
+        """Ayarlar menüsü - Keyboard navigation ile"""
+            # Kompakt ayarlar listesi
             current_lang = self.config.get('language', 'tr')
             lang_name = "🇹🇷 Türkçe" if current_lang == 'tr' else "🇬🇧 English"
-            menu_items = [
-                {"key": "1", "label": "Kullanici Adi", "description": f"Mevcut: {self.config['username']}", "color": "cyan"},
-                {"key": "2", "label": "Dil / Language", "description": f"Mevcut: {lang_name}", "color": "blue"},
-                {"key": "3", "label": "Bellek", "description": f"Mevcut: {self.config['memory']} GB", "color": "green"},
-                {"key": "4", "label": "Pencere Boyutu", "description": f"Mevcut: {self.config['window_width']}x{self.config['window_height']}", "color": "yellow"},
-                {"key": "5", "label": "Tam Ekran", "description": f"Mevcut: {'Evet' if self.config['fullscreen'] else 'Hayir'}", "color": "magenta"},
-                {"key": "6", "label": "Grafik Opt.", "description": f"Mevcut: {'Acik' if self.config['optimize_graphics'] else 'Kapali'}", "color": "cyan"},
-                {"key": "7", "label": "Mod Destegi", "description": f"Mevcut: {'Acik' if self.config['enable_mods'] else 'Kapali'}", "color": "green"},
-                {"key": "8", "label": "Java Yönetimi", "description": "Java ayarlarini yönet", "color": "yellow"},
-                {"key": "9", "label": "Debug Modu", "description": f"Mevcut: {'Acik' if self.config.get('debug', False) else 'Kapali'}", "color": "red"},
-                {"key": "10", "label": "Ayarlari Sifirla", "description": "Varsayilana dön", "color": "red"},
-                {"key": "11", "label": "Sistem Testi", "description": "Kontrol et", "color": "blue"}
-            ]
+            
+        menu_items = [
+            {"key": "1", "label": "Kullanıcı Adı", "description": f"Mevcut: {self.config['username']}", "color": "cyan"},
+            {"key": "2", "label": "Dil / Language", "description": f"Mevcut: {lang_name}", "color": "blue"},
+            {"key": "3", "label": "Bellek", "description": f"Mevcut: {self.config['memory']} GB", "color": "green"},
+            {"key": "4", "label": "Pencere Boyutu", "description": f"Mevcut: {self.config['window_width']}x{self.config['window_height']}", "color": "yellow"},
+            {"key": "5", "label": "Tam Ekran", "description": f"Mevcut: {'Evet' if self.config['fullscreen'] else 'Hayır'}", "color": "magenta"},
+            {"key": "6", "label": "Grafik Opt.", "description": f"Mevcut: {'Açık' if self.config['optimize_graphics'] else 'Kapalı'}", "color": "cyan"},
+            {"key": "7", "label": "Mod Desteği", "description": f"Mevcut: {'Açık' if self.config['enable_mods'] else 'Kapalı'}", "color": "green"},
+            {"key": "8", "label": "Java Yönetimi", "description": "Java ayarlarını yönet", "color": "yellow"},
+            {"key": "9", "label": "Debug Modu", "description": f"Mevcut: {'Açık' if self.config.get('debug', False) else 'Kapalı'}", "color": "red"},
+            {"key": "10", "label": "Ayarları Sıfırla", "description": "Tüm ayarları varsayılana döndür", "color": "red"},
+            {"key": "11", "label": "Sistem Testi", "description": "Sistem durumunu kontrol et", "color": "blue"}
+        ]
+        
+        while True:
             choice = self.navigator.show_menu("AYARLAR", menu_items, show_exit=True)
-            if choice is None or choice == "0":
+            
+            if choice == "0" or choice is None:
                 break
             elif choice == "1":
                 new_username = Prompt.ask("Yeni kullanıcı adını girin", default=self.config["username"])
@@ -3785,10 +3832,7 @@ class MinecraftLauncher:
         input("[dim]Enter...[/dim]")
     
     def _show_mod_menu(self):
-        """Gelişmiş mod yönetimi menüsü"""
-        while True:
-            os.system('clear')
-            
+        """Gelişmiş mod yönetimi menüsü - Keyboard navigation ile"""
             # Mod dizinini oluştur
             mods_dir = self.minecraft_dir / "mods"
             mods_dir.mkdir(exist_ok=True)
@@ -3799,39 +3843,18 @@ class MinecraftLauncher:
             # Mod uyumlu sürümleri kontrol et
             compatible_versions = self._get_mod_compatible_versions()
             
-            self.console.print(Panel(
-                f"[bold green]🔧 MOD YÖNETİMİ[/bold green]\n"
-                f"[dim]Yüklü modlar: {len(installed_mods)}[/dim]",
-                border_style="green",
-                padding=(1, 2)
-            ))
+        menu_items = [
+            {"key": "1", "label": "Mod Ara ve Kur", "description": "Modrinth'den mod ara ve yükle", "color": "cyan"},
+            {"key": "2", "label": "Yüklü Modları Yönet", "description": "Mevcut modları yönet", "color": "green"},
+            {"key": "3", "label": "Forge/Fabric Kur", "description": "Mod loader kur", "color": "yellow"},
+            {"key": "4", "label": "Mod Profili Oluştur", "description": "Mod profili oluştur", "color": "blue"},
+            {"key": "5", "label": "Mod Uyumluluk Testi", "description": "Mod uyumluluğunu test et", "color": "magenta"}
+        ]
+        
+        while True:
+            choice = self.navigator.show_menu(f"MOD YÖNETİMİ (Yüklü: {len(installed_mods)})", menu_items, show_exit=True)
             
-            self.console.print()
-            
-            # Mod uyumlu sürümler
-            if compatible_versions:
-                self.console.print("[bold]Mod Uyumlu Sürümler:[/bold]")
-                for version in compatible_versions[:5]:  # İlk 5 tanesini göster
-                    forge_status = "🔧" if version.get("forge") else "  "
-                    fabric_status = "🧵" if version.get("fabric") else "  "
-                    self.console.print(f"  {forge_status}{fabric_status} {version['id']}")
-                if len(compatible_versions) > 5:
-                    self.console.print(f"  [dim]... ve {len(compatible_versions)-5} tane daha[/dim]")
-            else:
-                self.console.print("[yellow]⚠️ Mod uyumlu sürüm bulunamadı[/yellow]")
-            
-            self.console.print()
-            
-            # Menü seçenekleri - ok tuşları ile
-            menu_items = [
-                {"key": "1", "label": "Mod Ara ve Kur", "description": "Modrinth üzerinden ara/kur", "color": "cyan"},
-                {"key": "2", "label": "Yüklü Modları Yönet", "description": "Listele/kaldır", "color": "green"},
-                {"key": "3", "label": "Forge/Fabric Kur", "description": "Mod loader kur", "color": "yellow"},
-                {"key": "4", "label": "Mod Profili Oluştur", "description": "Profil hazırla", "color": "blue"},
-                {"key": "5", "label": "Mod Uyumluluk Testi", "description": "Uyumluluk kontrolü", "color": "magenta"}
-            ]
-            choice = self.navigator.show_menu("🔧 MOD YÖNETİMİ", menu_items, show_exit=True)
-            if choice is None or choice == "0":
+            if choice == "0" or choice is None:
                 break
             elif choice == "1":
                 self._search_and_install_mods()
@@ -4822,45 +4845,67 @@ class MinecraftLauncher:
                 border_style="blue"
             ))
             
-            # Seçmeli menü (ok tuşları)
-            menu_items = [
-                {"key": "1", "label": f"Bellek Ayari", "description": f"Mevcut: {memory}", "color": "cyan"},
-                {"key": "2", "label": "Grafik Optimizasyonu", "description": "Aç/Kapat", "color": "cyan"},
-                {"key": "3", "label": "Hizli Baslatma", "description": "Aç/Kapat", "color": "cyan"},
-                {"key": "4", "label": "Ultra Performans", "description": "16GB RAM, maksimum FPS", "color": "green"},
-                {"key": "5", "label": "Yuksek Performans", "description": "8GB RAM, dengeli", "color": "green"},
-                {"key": "6", "label": "Orta Performans", "description": "4GB RAM, uyumlu", "color": "yellow"},
-                {"key": "7", "label": "Dusuk Performans", "description": "2GB RAM, minimum", "color": "yellow"},
-                {"key": "8", "label": "Sistem Optimizasyonu", "description": "Auto-optimize", "color": "blue"},
-                {"key": "9", "label": "Performans Testi", "description": "FPS ve sistem testi", "color": "blue"}
-            ]
-            choice = self.navigator.show_menu("PERFORMANS AYARLARI", menu_items, show_exit=True)
-            if choice is None or choice == "0":
-                break
+            self.console.print()
             
-            if choice == "1":
+            # Performans profilleri
+            self.console.print(Panel(
+                "[white]Mevcut Ayarlar:[/white]\n\n"
+                f"[cyan]1[/cyan]  Bellek Ayari          [yellow]{memory}[/yellow]\n"
+                f"[cyan]2[/cyan]  Grafik Optimizasyonu  [{'green' if optimize_graphics else 'red'}]{'Acik' if optimize_graphics else 'Kapali'}[/{'green' if optimize_graphics else 'red'}]\n"
+                f"[cyan]3[/cyan]  Hizli Baslatma        [{'green' if fast_launch else 'red'}]{'Acik' if fast_launch else 'Kapali'}[/{'green' if fast_launch else 'red'}]\n\n"
+                "[dim]Performans profillerini secin:[/dim]",
+                title="[bold white]Performans Ayarlari[/bold white]",
+                border_style="cyan"
+            ))
+            
+            self.console.print()
+            
+            # Hızlı profiller
+            self.console.print(Panel(
+                "[cyan]4[/cyan]  [green]Ultra Performans[/green]     [dim]16GB RAM, maksimum FPS[/dim]\n"
+                "[cyan]5[/cyan]  [green]Yuksek Performans[/green]    [dim]8GB RAM, dengeli[/dim]\n"
+                "[cyan]6[/cyan]  [yellow]Orta Performans[/yellow]      [dim]4GB RAM, uyumlu[/dim]\n"
+                "[cyan]7[/cyan]  [yellow]Dusuk Performans[/yellow]     [dim]2GB RAM, minimum[/dim]\n\n"
+                "[cyan]8[/cyan]  [blue]Sistem Optimizasyonu[/blue]  [dim]Auto-optimize scripti[/dim]\n"
+                "[cyan]9[/cyan]  [blue]Performans Testi[/blue]      [dim]FPS ve sistem testi[/dim]\n\n"
+                "[red]0[/red]  [red]Geri[/red]",
+                title="[bold white]Hizli Profiller[/bold white]",
+                border_style="blue"
+            ))
+            
+            self.console.print()
+            
+            choice = Prompt.ask("[cyan]>[/cyan]", choices=["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"])
+            
+            if choice == "0":
+                break
+            elif choice == "1":
                 # Bellek ayarı
-                # Küçük seçim menüsü
-                mem_items = [{"key": k, "label": v, "description": "" , "color": "cyan"} for k, v in
-                             [("A", "auto"), ("2", "2"), ("4", "4"), ("6", "6"), ("8", "8"), ("12", "12"), ("16", "16")]]
-                sel = self.navigator.show_menu("BELLEK SEÇİMİ (GB)", mem_items, show_exit=True)
-                if sel and sel != "0":
-                    new_memory = "auto" if sel == "A" else sel
+                self.console.print("\n[cyan]Bellek Ayari:[/cyan]")
+                self.console.print("  [dim]auto[/dim]  - Otomatik (sistem belleginin %60'i)")
+                self.console.print("  [dim]2-16[/dim]  - Manuel (GB cinsinden)")
+                
+                new_memory = Prompt.ask("\n[cyan]Bellek[/cyan]", default=str(memory))
                 self.config["memory"] = new_memory
                 self._save_config()
-                
+                self.console.print(f"[green]Bellek ayari guncellendi: {new_memory}[/green]")
+                input("\n[dim]Enter...[/dim]")
                 
             elif choice == "2":
                 # Grafik optimizasyonu
                 self.config["optimize_graphics"] = not optimize_graphics
                 self._save_config()
-                
+                status = "acildi" if self.config["optimize_graphics"] else "kapatildi"
+                self.console.print(f"\n[green]Grafik optimizasyonu {status}[/green]")
+                input("\n[dim]Enter...[/dim]")
                 
             elif choice == "3":
                 # Hızlı başlatma
                 self.config["fast_launch"] = not fast_launch
                 self._save_config()
-                
+                status = "acildi" if self.config["fast_launch"] else "kapatildi"
+                self.console.print(f"\n[green]Hizli baslatma {status}[/green]")
+                input("\n[dim]Enter...[/dim]")
                 
             elif choice == "4":
                 # Ultra Performans
@@ -4869,7 +4914,9 @@ class MinecraftLauncher:
                 self.config["fast_launch"] = True
                 self.config["enable_mods"] = True
                 self._save_config()
-                
+                self.console.print("\n[green]Ultra Performans profili yuklendi![/green]")
+                self.console.print("[dim]16GB RAM, maksimum optimizasyon[/dim]")
+                input("\n[dim]Enter...[/dim]")
                 
             elif choice == "5":
                 # Yüksek Performans
@@ -4877,7 +4924,9 @@ class MinecraftLauncher:
                 self.config["optimize_graphics"] = True
                 self.config["fast_launch"] = True
                 self._save_config()
-                
+                self.console.print("\n[green]Yuksek Performans profili yuklendi![/green]")
+                self.console.print("[dim]8GB RAM, dengeli ayarlar[/dim]")
+                input("\n[dim]Enter...[/dim]")
                 
             elif choice == "6":
                 # Orta Performans
@@ -4885,7 +4934,9 @@ class MinecraftLauncher:
                 self.config["optimize_graphics"] = True
                 self.config["fast_launch"] = False
                 self._save_config()
-                
+                self.console.print("\n[green]Orta Performans profili yuklendi![/green]")
+                self.console.print("[dim]4GB RAM, uyumlu ayarlar[/dim]")
+                input("\n[dim]Enter...[/dim]")
                 
             elif choice == "7":
                 # Düşük Performans
@@ -4893,7 +4944,9 @@ class MinecraftLauncher:
                 self.config["optimize_graphics"] = False
                 self.config["fast_launch"] = False
                 self._save_config()
-                
+                self.console.print("\n[green]Dusuk Performans profili yuklendi![/green]")
+                self.console.print("[dim]2GB RAM, minimum ayarlar[/dim]")
+                input("\n[dim]Enter...[/dim]")
                 
             elif choice == "8":
                 # Sistem optimizasyonu
@@ -4903,6 +4956,7 @@ class MinecraftLauncher:
                     subprocess.run(["bash", str(script_path)])
                 else:
                     self.console.print("[red]Optimizasyon scripti bulunamadi![/red]")
+                input("\n[dim]Enter...[/dim]")
                 
             elif choice == "9":
                 # Performans testi
@@ -5029,8 +5083,7 @@ class MinecraftLauncher:
             f"[white]v{__version__} - Terminal Edition[/white]\n"
             "[dim]Gelistirici: Berke Oruc (2009)[/dim]",
             border_style="cyan",
-            padding=(1, 2),
-            expand=True
+            padding=(1, 2)
         ))
         
         self.console.print()
@@ -5041,7 +5094,7 @@ class MinecraftLauncher:
         # Tek tablo - Kompakt
         info_table = Table(show_header=False, box=box.SIMPLE, padding=(0, 2))
         info_table.add_column("", style="dim cyan", width=12)
-        info_table.add_column("", style="white", width=30)
+        info_table.add_column("", style="white", width=20)
         info_table.add_column("", style="dim green", width=12)
         info_table.add_column("", style="white", width=15)
         
@@ -5053,7 +5106,7 @@ class MinecraftLauncher:
         info_table.add_row("Dogum", "2009", "Java", f"v{java_ver}" if java_ver else "N/A")
         info_table.add_row("Platform", "Arch Linux", "Launcher", f"v{__version__}")
         
-        self.console.print(Panel(info_table, title="[bold white]BILGILER[/bold white]", border_style="cyan", padding=(1, 1), expand=True))
+        self.console.print(Panel(info_table, title="[bold white]BILGILER[/bold white]", border_style="cyan", padding=(1, 1)))
         
         # Özellikler - 2 kolon
         self.console.print()
@@ -5064,7 +5117,7 @@ class MinecraftLauncher:
             "[green]+[/green] Performans izleme [green]+[/green] Wayland destegi\n"
             "[green]+[/green] JVM optimizasyon  [green]+[/green] Dinamik arayuz"
         )
-        self.console.print(Panel(features, title="[bold white]OZELLIKLER[/bold white]", border_style="green", padding=(1, 2), expand=True))
+        self.console.print(Panel(features, title="[bold white]OZELLIKLER[/bold white]", border_style="green", padding=(1, 2)))
         
         self.console.print("\n[dim]Mojang Studios | Rich Library | Arch Linux[/dim]\n")
         
@@ -5091,7 +5144,6 @@ class MinecraftLauncher:
     
     def _show_version_management_menu(self):
         """İndirilmiş sürümleri yönet - silme, düzenleme"""
-        while True:
         os.system('clear')
         
         # İndirilmiş sürümleri bul
@@ -5129,117 +5181,29 @@ class MinecraftLauncher:
             
             self.console.print(f"  [cyan]{i:2}[/cyan]  {version:15}  [dim]{size_mb:.1f} MB[/dim]")
         
-            self.console.print()
+        self.console.print("\n[dim]0 = Geri | Numara = Sec | S = Tumunu Sil[/dim]")
+        
+        try:
+            choice_input = Prompt.ask("\n[cyan]>[/cyan]")
             
-            # Menü seçenekleri
-            menu_items = [
-                {"key": "1", "label": "Sürüm Seç ve Düzenle", "description": "Tek sürüm yönetimi", "color": "cyan"},
-                {"key": "2", "label": "Tüm Sürümleri Sil", "description": "Hepsini kaldır", "color": "red"},
-                {"key": "3", "label": "Sürüm Bilgilerini Göster", "description": "Detaylı bilgi", "color": "blue"},
-                {"key": "4", "label": "Forge/Fabric Kur", "description": "Mod loader ekle", "color": "yellow"}
-            ]
-            
-            choice = self.navigator.show_menu("SURUM YONETIMI", menu_items, show_exit=True)
-            
-            if choice is None or choice == "0":
-                break
-            elif choice == "1":
-                self._select_version_to_edit(installed_versions)
-            elif choice == "2":
+            if choice_input == "0":
+                return
+            elif choice_input.upper() == "S":
                 if Confirm.ask("Tüm sürümleri silmek istediğinizden emin misiniz?", default=False):
                     import shutil
                     shutil.rmtree(self.versions_dir)
                     self.console.print("[green]✅ Tüm sürümler silindi![/green]")
                     input("[dim]Enter...[/dim]")
-            elif choice == "3":
-                self._show_version_details(installed_versions)
-            elif choice == "4":
-                self._install_mod_loader()
-    
-    def _select_version_to_edit(self, installed_versions):
-        """Sürüm seçimi için alt menü"""
-        while True:
-            os.system('clear')
-            
-            self.console.print(Panel(
-                "[bold cyan]SURUM SECIMI[/bold cyan]\n"
-                "[dim]Düzenlemek istediğiniz sürümü seçin[/dim]",
-                border_style="cyan",
-                padding=(1, 2)
-            ))
-            
-            self.console.print()
-            
-            # Sürüm listesi
-            for i, version in enumerate(installed_versions, 1):
-                version_dir = self.versions_dir / version
-                size_mb = sum(f.stat().st_size for f in version_dir.rglob('*') if f.is_file()) / (1024*1024)
-                
-                self.console.print(f"  [cyan]{i:2}[/cyan]  {version:15}  [dim]{size_mb:.1f} MB[/dim]")
-            
-            self.console.print()
-            
-            try:
-                choice_input = Prompt.ask("[cyan]Seçmek istediğiniz sürüm numarası (0 = Geri)[/cyan]")
-                
-                if choice_input == "0":
-                    break
+                return
             
             choice = int(choice_input)
             
             if 1 <= choice <= len(installed_versions):
                 version_id = installed_versions[choice-1]
                 self._show_version_edit_menu(version_id)
-                    break
-                else:
-                    self.console.print("[red]❌ Geçersiz seçim![/red]")
-                    input("[dim]Enter...[/dim]")
                 
         except ValueError:
             self.console.print("[red]❌ Geçersiz seçim![/red]")
-                input("[dim]Enter...[/dim]")
-    
-    def _show_version_details(self, installed_versions):
-        """Sürüm detaylarını göster"""
-        os.system('clear')
-        
-        self.console.print(Panel(
-            "[bold cyan]SURUM DETAYLARI[/bold cyan]",
-            border_style="cyan",
-            padding=(1, 2)
-        ))
-        
-        self.console.print()
-        
-        for version in installed_versions:
-            version_dir = self.versions_dir / version
-            size_mb = sum(f.stat().st_size for f in version_dir.rglob('*') if f.is_file()) / (1024*1024)
-            
-            # JSON dosyasından bilgileri oku
-            json_file = version_dir / f"{version}.json"
-            if json_file.exists():
-                try:
-                    with open(json_file, 'r') as f:
-                        version_data = json.load(f)
-                    
-                    self.console.print(f"[bold cyan]{version}[/bold cyan]")
-                    self.console.print(f"  Boyut: {size_mb:.1f} MB")
-                    self.console.print(f"  Tip: {version_data.get('type', 'release')}")
-                    self.console.print(f"  Ana Sınıf: {version_data.get('mainClass', 'N/A')}")
-                    
-                    # Mod loader kontrolü
-                    if 'forge' in version.lower():
-                        self.console.print(f"  Mod Loader: [yellow]Forge[/yellow]")
-                    elif 'fabric' in version.lower():
-                        self.console.print(f"  Mod Loader: [blue]Fabric[/blue]")
-                    else:
-                        self.console.print(f"  Mod Loader: [dim]Vanilla[/dim]")
-                    
-                    self.console.print()
-                    
-                except Exception as e:
-                    self.console.print(f"[red]❌ {version}: Hata - {e}[/red]")
-        
             input("[dim]Enter...[/dim]")
     
     def _show_version_edit_menu(self, version_id: str):
@@ -5258,31 +5222,34 @@ class MinecraftLauncher:
                 padding=(1, 2)
             ))
             
-            # Menü seçenekleri
-            menu_items = [
-                {"key": "1", "label": "Sürümü Başlat", "description": "Minecraft'ı başlat", "color": "green"},
-                {"key": "2", "label": "Sürümü Sil", "description": "Bu sürümü kaldır", "color": "red"},
-                {"key": "3", "label": "Modları Yönet", "description": "Mod ekle/kaldır", "color": "cyan"},
-                {"key": "4", "label": "Resource Pack Yönet", "description": "Texture pack", "color": "blue"},
-                {"key": "5", "label": "Shader Yönet", "description": "Görsel efektler", "color": "magenta"},
-                {"key": "6", "label": "Dünya Yönetimi", "description": "Save dosyaları", "color": "yellow"},
-                {"key": "7", "label": "Forge/Fabric Kur", "description": "Mod loader ekle", "color": "yellow"}
-            ]
+            table = Table(show_header=False, box=None, padding=(0, 2))
+            table.add_column("Seçenek", style="cyan", width=20)
+            table.add_column("Açıklama", style="dim")
             
-            choice = self.navigator.show_menu(f"SURUM DUZENLE: {version_id}", menu_items, show_exit=True)
+            table.add_row("1", "Sürümü Başlat")
+            table.add_row("2", "Sürümü Sil")
+            table.add_row("3", "Modları Yönet")
+            table.add_row("4", "Resource Pack Yönet")
+            table.add_row("5", "Shader Yönet")
+            table.add_row("6", "Dünya Yönetimi")
+            table.add_row("0", "Geri")
             
-            if choice is None or choice == "0":
-                break
+            self.console.print(table)
+            
+            choice = Prompt.ask("\n[cyan]>[/cyan]", choices=["0", "1", "2", "3", "4", "5", "6"])
+            
+            if choice == "0":
+                return
             elif choice == "1":
                 self._launch_minecraft(version_id)
-                # Don't return here, stay in the menu
+                return
             elif choice == "2":
                 if Confirm.ask(f"'{version_id}' sürümünü silmek istediğinizden emin misiniz?", default=False):
                     import shutil
                     shutil.rmtree(version_dir)
                     self.console.print("[green]✅ Sürüm silindi![/green]")
                     input("[dim]Enter...[/dim]")
-                    break  # Return to version management menu
+                    return
             elif choice == "3":
                 self._show_mod_management_menu(version_id)
             elif choice == "4":
@@ -5291,170 +5258,9 @@ class MinecraftLauncher:
                 self._show_shader_menu(version_id)
             elif choice == "6":
                 self._show_world_management_menu(version_id)
-            elif choice == "7":
-                self._install_mod_loader_for_version(version_id)
-    
-    def _install_mod_loader_for_version(self, version_id: str):
-        """Belirli bir sürüm için mod loader kur"""
-        os.system('clear')
-        
-        self.console.print(Panel(
-            f"[bold cyan]MOD LOADER KUR[/bold cyan]\n"
-            f"[dim]Surum: {version_id}[/dim]",
-            border_style="cyan",
-            padding=(1, 2)
-        ))
-        
-        # Minecraft sürümünü parse et
-        if 'forge' in version_id.lower() or 'fabric' in version_id.lower():
-            self.console.print("[yellow]⚠️ Bu sürüm zaten mod loader içeriyor![/yellow]")
-            input("[dim]Enter...[/dim]")
-            return
-        
-        # Minecraft sürümünü çıkar
-        minecraft_version = version_id.split('-')[0] if '-' in version_id else version_id
-        
-        menu_items = [
-            {"key": "1", "label": "Forge Kur", "description": f"Forge loader for {minecraft_version}", "color": "yellow"},
-            {"key": "2", "label": "Fabric Kur", "description": f"Fabric loader for {minecraft_version}", "color": "blue"},
-            {"key": "3", "label": "Mevcut Loader'ları Göster", "description": "Kurulu loader'lar", "color": "cyan"}
-        ]
-        
-        choice = self.navigator.show_menu(f"MOD LOADER KUR: {version_id}", menu_items, show_exit=True)
-        
-        if choice is None or choice == "0":
-            return
-        elif choice == "1":
-            self._install_forge_for_version(minecraft_version)
-        elif choice == "2":
-            self._install_fabric_for_version(minecraft_version)
-        elif choice == "3":
-            self._show_installed_loaders(version_id)
-    
-    def _install_forge_for_version(self, minecraft_version: str):
-        """Belirli Minecraft sürümü için Forge kur"""
-        self.console.print(f"[blue]🔧 {minecraft_version} için Forge sürümleri aranıyor...[/blue]")
-        
-        try:
-            forge_versions = self._get_forge_versions(minecraft_version)
-            if forge_versions:
-                self.console.print(f"[green]✅ {len(forge_versions)} Forge sürümü bulundu![/green]")
-                
-                for i, version in enumerate(forge_versions[:5], 1):  # İlk 5 tanesini göster
-                    self.console.print(f"  [cyan]{i}[/cyan]  {minecraft_version}-{version}")
-                
-                if len(forge_versions) > 5:
-                    self.console.print(f"  [dim]... ve {len(forge_versions)-5} tane daha[/dim]")
-                
-                try:
-                    choice = int(Prompt.ask(f"\n[cyan]Kurulacak Forge sürümü (1-{min(5, len(forge_versions))})[/cyan]"))
-                    if 1 <= choice <= min(5, len(forge_versions)):
-                        forge_version = forge_versions[choice - 1]
-                        self._download_forge(minecraft_version, forge_version)
-                    else:
-                        self.console.print("[red]❌ Geçersiz seçim![/red]")
-                except ValueError:
-                    self.console.print("[red]❌ Geçersiz seçim![/red]")
-            else:
-                self.console.print(f"[red]❌ {minecraft_version} için Forge sürümü bulunamadı![/red]")
-        except Exception as e:
-            self.console.print(f"[red]❌ Hata: {e}[/red]")
-        
-        input("[dim]Enter...[/dim]")
-    
-    def _install_fabric_for_version(self, minecraft_version: str):
-        """Belirli Minecraft sürümü için Fabric kur"""
-        self.console.print(f"[blue]🧵 {minecraft_version} için Fabric sürümleri aranıyor...[/blue]")
-        
-        try:
-            fabric_versions = self._get_fabric_versions(minecraft_version)
-            if fabric_versions:
-                self.console.print(f"[green]✅ {len(fabric_versions)} Fabric sürümü bulundu![/green]")
-                
-                for i, version in enumerate(fabric_versions[:5], 1):  # İlk 5 tanesini göster
-                    self.console.print(f"  [cyan]{i}[/cyan]  {minecraft_version}-fabric-{version}")
-                
-                if len(fabric_versions) > 5:
-                    self.console.print(f"  [dim]... ve {len(fabric_versions)-5} tane daha[/dim]")
-                
-                try:
-                    choice = int(Prompt.ask(f"\n[cyan]Kurulacak Fabric sürümü (1-{min(5, len(fabric_versions))})[/cyan]"))
-                    if 1 <= choice <= min(5, len(fabric_versions)):
-                        fabric_version = fabric_versions[choice - 1]
-                        self._download_fabric(minecraft_version, fabric_version)
-                    else:
-                        self.console.print("[red]❌ Geçersiz seçim![/red]")
-                except ValueError:
-                    self.console.print("[red]❌ Geçersiz seçim![/red]")
-            else:
-                self.console.print(f"[red]❌ {minecraft_version} için Fabric sürümü bulunamadı![/red]")
-        except Exception as e:
-            self.console.print(f"[red]❌ Hata: {e}[/red]")
-        
-        input("[dim]Enter...[/dim]")
-    
-    def _show_installed_loaders(self, version_id: str):
-        """Kurulu mod loader'ları göster"""
-        os.system('clear')
-        
-        self.console.print(Panel(
-            f"[bold cyan]KURULU MOD LOADER'LAR[/bold cyan]\n"
-            f"[dim]Surum: {version_id}[/dim]",
-            border_style="cyan",
-            padding=(1, 2)
-        ))
-        
-        # Sürüm dizinini kontrol et
-        version_dir = self.versions_dir / version_id
-        if not version_dir.exists():
-            self.console.print("[red]❌ Sürüm dizini bulunamadı![/red]")
-            input("[dim]Enter...[/dim]")
-            return
-        
-        # JSON dosyasını kontrol et
-        json_file = version_dir / f"{version_id}.json"
-        if json_file.exists():
-            try:
-                with open(json_file, 'r') as f:
-                    version_data = json.load(f)
-                
-                self.console.print(f"[bold]Sürüm Bilgileri:[/bold]")
-                self.console.print(f"  ID: {version_data.get('id', 'N/A')}")
-                self.console.print(f"  Tip: {version_data.get('type', 'N/A')}")
-                self.console.print(f"  Ana Sınıf: {version_data.get('mainClass', 'N/A')}")
-                
-                # Mod loader kontrolü
-                if 'forge' in version_id.lower():
-                    self.console.print(f"  Mod Loader: [yellow]Forge[/yellow]")
-                elif 'fabric' in version_id.lower():
-                    self.console.print(f"  Mod Loader: [blue]Fabric[/blue]")
-                else:
-                    self.console.print(f"  Mod Loader: [dim]Vanilla (Mod loader yok)[/dim]")
-                
-                # Mod dosyalarını kontrol et
-                mods_dir = version_dir / "mods"
-                if mods_dir.exists():
-                    mod_files = list(mods_dir.glob("*.jar"))
-                    self.console.print(f"  Mod Sayısı: {len(mod_files)}")
-                    
-                    if mod_files:
-                        self.console.print(f"\n[bold]Yüklü Modlar:[/bold]")
-                        for mod_file in mod_files[:10]:  # İlk 10 tanesini göster
-                            self.console.print(f"  • {mod_file.name}")
-                        if len(mod_files) > 10:
-                            self.console.print(f"  [dim]... ve {len(mod_files)-10} tane daha[/dim]")
-                else:
-                    self.console.print(f"  Mod Sayısı: 0")
-                
-            except Exception as e:
-                self.console.print(f"[red]❌ JSON okuma hatası: {e}[/red]")
-        else:
-            self.console.print("[red]❌ Sürüm JSON dosyası bulunamadı![/red]")
-        
-        input("[dim]Enter...[/dim]")
 
     def _show_mod_management_menu(self, version_id: str):
-        """Mod yönetim menüsü - Geliştirilmiş"""
+        """Mod yönetim menüsü - Forge desteği ile"""
         while True:
             os.system('clear')
             
@@ -5472,392 +5278,33 @@ class MinecraftLauncher:
                 padding=(1, 2)
             ))
             
-            # Mod loader kontrolü
-            if 'forge' in version_id.lower():
-                self.console.print("[yellow]🔧 Forge mod loader aktif[/yellow]")
-            elif 'fabric' in version_id.lower():
-                self.console.print("[blue]🧵 Fabric mod loader aktif[/blue]")
-            else:
-                self.console.print("[red]⚠️ Mod loader bulunamadı! Modlar çalışmayabilir.[/red]")
+            table = Table(show_header=False, box=None, padding=(0, 2))
+            table.add_column("Seçenek", style="cyan", width=20)
+            table.add_column("Açıklama", style="dim")
             
-            self.console.print()
+            table.add_row("1", "Mod Ekle (Dosya)")
+            table.add_row("2", "Modrinth'ten Ara")
+            table.add_row("3", "Modları Listele")
+            table.add_row("4", "Mod Sil")
+            table.add_row("5", "Forge Kur")
+            table.add_row("0", "Geri")
             
-            # Menü seçenekleri
-            menu_items = [
-                {"key": "1", "label": "🔍 Mod Ara ve Kur", "description": "Modrinth/CursedForge", "color": "cyan"},
-                {"key": "2", "label": "📁 Dosyadan Mod Ekle", "description": "Yerel .jar dosyası", "color": "green"},
-                {"key": "3", "label": "📋 Yüklü Modları Listele", "description": "Detaylı liste", "color": "blue"},
-                {"key": "4", "label": "🗑️ Mod Sil", "description": "Mod kaldır", "color": "red"},
-                {"key": "5", "label": "🔧 Mod Loader Kur", "description": "Forge/Fabric", "color": "yellow"},
-                {"key": "6", "label": "⚙️ Mod Ayarları", "description": "Konfigürasyon", "color": "magenta"},
-                {"key": "7", "label": "🧪 Mod Uyumluluk Testi", "description": "Çakışma kontrolü", "color": "yellow"}
-            ]
+            self.console.print(table)
             
-            choice = self.navigator.show_menu(f"MOD YONETIMI: {version_id}", menu_items, show_exit=True)
+            choice = Prompt.ask("\n[cyan]>[/cyan]", choices=["0", "1", "2", "3", "4", "5"])
             
-            if choice is None or choice == "0":
-                break
+            if choice == "0":
+                return
             elif choice == "1":
-                self._search_and_install_mod(version_id)
-            elif choice == "2":
                 self._add_mod_from_file(version_id)
+            elif choice == "2":
+                self._search_and_install_mod(version_id)
             elif choice == "3":
-                self._list_mods_detailed(version_id)
+                self._list_mods(version_id)
             elif choice == "4":
-                self._delete_mod_interactive(version_id)
+                self._delete_mod(version_id)
             elif choice == "5":
-                self._install_mod_loader_for_version(version_id)
-            elif choice == "6":
-                self._mod_settings_menu(version_id)
-            elif choice == "7":
-                self._test_mod_compatibility(version_id)
-    
-    def _list_mods_detailed(self, version_id: str):
-        """Detaylı mod listesi"""
-        os.system('clear')
-        
-        mods_dir = self.versions_dir / version_id / "mods"
-        mod_files = list(mods_dir.glob("*.jar"))
-        
-        self.console.print(Panel(
-            f"[bold cyan]YUKLU MODLAR[/bold cyan]\n"
-            f"[dim]Surum: {version_id}[/dim]\n"
-            f"[dim]Toplam: {len(mod_files)} mod[/dim]",
-            border_style="cyan",
-            padding=(1, 2)
-        ))
-        
-        if not mod_files:
-            self.console.print("[yellow]⚠️ Hiç mod bulunamadı![/yellow]")
-            input("[dim]Enter...[/dim]")
-            return
-        
-        self.console.print()
-        
-        for i, mod_file in enumerate(mod_files, 1):
-            file_size = mod_file.stat().st_size / (1024 * 1024)  # MB
-            mod_name = mod_file.stem
-            
-            # Mod bilgilerini çıkarmaya çalış
-            try:
-                import zipfile
-                with zipfile.ZipFile(mod_file, 'r') as zip_file:
-                    # mods.toml veya mcmod.info dosyasını ara
-                    mod_info = None
-                    for file_info in zip_file.filelist:
-                        if file_info.filename.endswith('mods.toml') or file_info.filename.endswith('mcmod.info'):
-                            try:
-                                mod_info_content = zip_file.read(file_info.filename).decode('utf-8')
-                                mod_info = mod_info_content[:200] + "..." if len(mod_info_content) > 200 else mod_info_content
-                                break
-                            except:
-                                continue
-                
-                if mod_info:
-                    self.console.print(f"[cyan]{i:2}[/cyan]  [bold]{mod_name}[/bold]  [dim]{file_size:.1f} MB[/dim]")
-                    self.console.print(f"      [dim]{mod_info}[/dim]")
-                else:
-                    self.console.print(f"[cyan]{i:2}[/cyan]  [bold]{mod_name}[/bold]  [dim]{file_size:.1f} MB[/dim]")
-                    self.console.print(f"      [dim]Mod bilgisi bulunamadı[/dim]")
-                
-                self.console.print()
-                
-            except Exception as e:
-                self.console.print(f"[cyan]{i:2}[/cyan]  [bold]{mod_name}[/bold]  [dim]{file_size:.1f} MB[/dim]")
-                self.console.print(f"      [red]Hata: {e}[/red]")
-                self.console.print()
-        
-        input("[dim]Enter...[/dim]")
-    
-    def _delete_mod_interactive(self, version_id: str):
-        """İnteraktif mod silme"""
-        os.system('clear')
-        
-        mods_dir = self.versions_dir / version_id / "mods"
-        mod_files = list(mods_dir.glob("*.jar"))
-        
-        if not mod_files:
-            self.console.print("[yellow]⚠️ Silinecek mod bulunamadı![/yellow]")
-            input("[dim]Enter...[/dim]")
-            return
-        
-        self.console.print(Panel(
-            f"[bold red]MOD SILME[/bold red]\n"
-            f"[dim]Surum: {version_id}[/dim]",
-            border_style="red",
-            padding=(1, 2)
-        ))
-        
-        self.console.print()
-        
-        for i, mod_file in enumerate(mod_files, 1):
-            file_size = mod_file.stat().st_size / (1024 * 1024)  # MB
-            self.console.print(f"  [cyan]{i:2}[/cyan]  {mod_file.name:30} [dim]{file_size:.1f} MB[/dim]")
-        
-        self.console.print()
-        
-        try:
-            choice = int(Prompt.ask("[cyan]Silinecek mod numarası (0 = İptal)[/cyan]"))
-            if choice == 0:
-                return
-            
-            if 1 <= choice <= len(mod_files):
-                mod_to_delete = mod_files[choice - 1]
-                
-                if Confirm.ask(f"'{mod_to_delete.name}' modunu silmek istediğinizden emin misiniz?", default=False):
-                    mod_to_delete.unlink()
-                    self.console.print(f"[green]✅ {mod_to_delete.name} silindi![/green]")
-                else:
-                    self.console.print("[yellow]İptal edildi.[/yellow]")
-            else:
-                self.console.print("[red]❌ Geçersiz seçim![/red]")
-        except ValueError:
-            self.console.print("[red]❌ Geçersiz seçim![/red]")
-        
-        input("[dim]Enter...[/dim]")
-    
-    def _mod_settings_menu(self, version_id: str):
-        """Mod ayarları menüsü"""
-        os.system('clear')
-        
-        self.console.print(Panel(
-            f"[bold magenta]MOD AYARLARI[/bold magenta]\n"
-            f"[dim]Surum: {version_id}[/dim]",
-            border_style="magenta",
-            padding=(1, 2)
-        ))
-        
-        menu_items = [
-            {"key": "1", "label": "Mod Konfigürasyonu", "description": "config dosyaları", "color": "cyan"},
-            {"key": "2", "label": "Mod Sıralaması", "description": "Yükleme sırası", "color": "blue"},
-            {"key": "3", "label": "Mod Profili Oluştur", "description": "Mod paketi", "color": "green"},
-            {"key": "4", "label": "Mod Profili Yükle", "description": "Kaydedilmiş paket", "color": "yellow"}
-        ]
-        
-        choice = self.navigator.show_menu("MOD AYARLARI", menu_items, show_exit=True)
-        
-        if choice is None or choice == "0":
-            return
-        elif choice == "1":
-            self._manage_mod_configs(version_id)
-        elif choice == "2":
-            self._manage_mod_order(version_id)
-        elif choice == "3":
-            self._create_mod_profile(version_id)
-        elif choice == "4":
-            self._load_mod_profile(version_id)
-    
-    def _test_mod_compatibility(self, version_id: str):
-        """Mod uyumluluk testi"""
-        os.system('clear')
-        
-        self.console.print(Panel(
-            f"[bold yellow]MOD UYUMLULUK TESTI[/bold yellow]\n"
-            f"[dim]Surum: {version_id}[/dim]",
-            border_style="yellow",
-            padding=(1, 2)
-        ))
-        
-        mods_dir = self.versions_dir / version_id / "mods"
-        mod_files = list(mods_dir.glob("*.jar"))
-        
-        if not mod_files:
-            self.console.print("[yellow]⚠️ Test edilecek mod bulunamadı![/yellow]")
-            input("[dim]Enter...[/dim]")
-            return
-        
-        self.console.print(f"[blue]🔍 {len(mod_files)} mod test ediliyor...[/blue]")
-        
-        # Basit uyumluluk kontrolü
-        conflicts = []
-        duplicates = []
-        mod_names = []
-        
-        for mod_file in mod_files:
-            mod_name = mod_file.stem.lower()
-            
-            # Duplicate kontrolü
-            if mod_name in mod_names:
-                duplicates.append(mod_file.name)
-            else:
-                mod_names.append(mod_name)
-            
-            # Basit çakışma kontrolü (örnek)
-            if any(keyword in mod_name for keyword in ['optifine', 'sodium', 'iris']):
-                conflicts.append(f"{mod_file.name} - OptiFine/Sodium çakışması olabilir")
-        
-        self.console.print()
-        
-        if duplicates:
-            self.console.print("[red]❌ Duplicate Modlar:[/red]")
-            for dup in duplicates:
-                self.console.print(f"  • {dup}")
-        
-        if conflicts:
-            self.console.print("[yellow]⚠️ Potansiyel Çakışmalar:[/yellow]")
-            for conflict in conflicts:
-                self.console.print(f"  • {conflict}")
-        
-        if not duplicates and not conflicts:
-            self.console.print("[green]✅ Mod uyumluluğu testi başarılı![/green]")
-            self.console.print("[dim]Bilinen çakışma bulunamadı.[/dim]")
-        
-        self.console.print()
-        self.console.print(f"[dim]Toplam test edilen mod: {len(mod_files)}[/dim]")
-        
-        input("[dim]Enter...[/dim]")
-    
-    def _manage_mod_configs(self, version_id: str):
-        """Mod konfigürasyon yönetimi"""
-        os.system('clear')
-        
-        config_dir = self.versions_dir / version_id / "config"
-        
-        self.console.print(Panel(
-            f"[bold cyan]MOD KONFIGURASYONU[/bold cyan]\n"
-            f"[dim]Surum: {version_id}[/dim]",
-            border_style="cyan",
-            padding=(1, 2)
-        ))
-        
-        if not config_dir.exists():
-            self.console.print("[yellow]⚠️ Konfigürasyon dizini bulunamadı![/yellow]")
-            self.console.print("[dim]Modlar çalıştırıldığında otomatik oluşturulur.[/dim]")
-        else:
-            config_files = list(config_dir.rglob("*"))
-            if config_files:
-                self.console.print(f"[green]✅ {len(config_files)} konfigürasyon dosyası bulundu![/green]")
-                for config_file in config_files[:10]:  # İlk 10 tanesini göster
-                    self.console.print(f"  • {config_file.relative_to(config_dir)}")
-                if len(config_files) > 10:
-                    self.console.print(f"  [dim]... ve {len(config_files)-10} tane daha[/dim]")
-            else:
-                self.console.print("[yellow]⚠️ Konfigürasyon dosyası bulunamadı![/yellow]")
-        
-        input("[dim]Enter...[/dim]")
-    
-    def _manage_mod_order(self, version_id: str):
-        """Mod yükleme sırası yönetimi"""
-        os.system('clear')
-        
-        self.console.print(Panel(
-            f"[bold blue]MOD SIRALAMASI[/bold blue]\n"
-            f"[dim]Surum: {version_id}[/dim]",
-            border_style="blue",
-            padding=(1, 2)
-        ))
-        
-        self.console.print("[yellow]⚠️ Mod sıralaması özelliği geliştirilme aşamasında![/yellow]")
-        self.console.print("[dim]Şu anda modlar alfabetik sırayla yüklenir.[/dim]")
-        
-        input("[dim]Enter...[/dim]")
-    
-    def _create_mod_profile(self, version_id: str):
-        """Mod profili oluştur"""
-        os.system('clear')
-        
-        self.console.print(Panel(
-            f"[bold green]MOD PROFILI OLUSTUR[/bold green]\n"
-            f"[dim]Surum: {version_id}[/dim]",
-            border_style="green",
-            padding=(1, 2)
-        ))
-        
-        profile_name = Prompt.ask("[cyan]Profil adını girin[/cyan]")
-        
-        if not profile_name:
-            self.console.print("[red]❌ Profil adı boş olamaz![/red]")
-            input("[dim]Enter...[/dim]")
-            return
-        
-        mods_dir = self.versions_dir / version_id / "mods"
-        mod_files = list(mods_dir.glob("*.jar"))
-        
-        if not mod_files:
-            self.console.print("[yellow]⚠️ Kaydedilecek mod bulunamadı![/yellow]")
-            input("[dim]Enter...[/dim]")
-            return
-        
-        # Profil dizini oluştur
-        profiles_dir = self.launcher_dir / "mod_profiles"
-        profiles_dir.mkdir(exist_ok=True)
-        
-        profile_dir = profiles_dir / f"{profile_name}_{version_id}"
-        profile_dir.mkdir(exist_ok=True)
-        
-        # Modları kopyala
-        import shutil
-        for mod_file in mod_files:
-            shutil.copy2(mod_file, profile_dir / mod_file.name)
-        
-        self.console.print(f"[green]✅ Mod profili '{profile_name}' oluşturuldu![/green]")
-        self.console.print(f"[dim]Konum: {profile_dir}[/dim]")
-        self.console.print(f"[dim]Kaydedilen mod sayısı: {len(mod_files)}[/dim]")
-        
-        input("[dim]Enter...[/dim]")
-    
-    def _load_mod_profile(self, version_id: str):
-        """Mod profili yükle"""
-        os.system('clear')
-        
-        self.console.print(Panel(
-            f"[bold yellow]MOD PROFILI YUKLE[/bold yellow]\n"
-            f"[dim]Surum: {version_id}[/dim]",
-            border_style="yellow",
-            padding=(1, 2)
-        ))
-        
-        profiles_dir = self.launcher_dir / "mod_profiles"
-        
-        if not profiles_dir.exists():
-            self.console.print("[yellow]⚠️ Hiç mod profili bulunamadı![/yellow]")
-            input("[dim]Enter...[/dim]")
-            return
-        
-        # Mevcut profilleri listele
-        profiles = [p for p in profiles_dir.iterdir() if p.is_dir()]
-        
-        if not profiles:
-            self.console.print("[yellow]⚠️ Hiç mod profili bulunamadı![/yellow]")
-            input("[dim]Enter...[/dim]")
-            return
-        
-        self.console.print(f"[green]✅ {len(profiles)} mod profili bulundu![/green]")
-        
-        for i, profile in enumerate(profiles, 1):
-            mod_count = len(list(profile.glob("*.jar")))
-            self.console.print(f"  [cyan]{i:2}[/cyan]  {profile.name:30} [dim]{mod_count} mod[/dim]")
-        
-        try:
-            choice = int(Prompt.ask("\n[cyan]Yüklenecek profil numarası (0 = İptal)[/cyan]"))
-            if choice == 0:
-                return
-            
-            if 1 <= choice <= len(profiles):
-                selected_profile = profiles[choice - 1]
-                
-                if Confirm.ask(f"'{selected_profile.name}' profilini yüklemek istediğinizden emin misiniz?", default=False):
-                    # Mevcut modları temizle
-                    mods_dir = self.versions_dir / version_id / "mods"
-                    mods_dir.mkdir(exist_ok=True)
-                    
-                    for existing_mod in mods_dir.glob("*.jar"):
-                        existing_mod.unlink()
-                    
-                    # Profil modlarını kopyala
-                    import shutil
-                    for mod_file in selected_profile.glob("*.jar"):
-                        shutil.copy2(mod_file, mods_dir / mod_file.name)
-                    
-                    self.console.print(f"[green]✅ Mod profili '{selected_profile.name}' yüklendi![/green]")
-                else:
-                    self.console.print("[yellow]İptal edildi.[/yellow]")
-            else:
-                self.console.print("[red]❌ Geçersiz seçim![/red]")
-        except ValueError:
-            self.console.print("[red]❌ Geçersiz seçim![/red]")
-        
-        input("[dim]Enter...[/dim]")
+                self._install_forge(version_id)
 
     def _add_mod_from_file(self, version_id: str):
         """Dosyadan mod ekle"""
@@ -6585,10 +6032,7 @@ class MinecraftLauncher:
         
         # ARAMA ÖZELLİĞİ
         self.console.print("\n[cyan]Arama:[/cyan] [dim](bos = tumu)[/dim]")
-        try:
-            search_query = Prompt.ask("[cyan]>[/cyan]", default="").strip().lower()
-        except Exception:
-            search_query = ""
+        search_query = Prompt.ask("[cyan]>[/cyan]", default="").strip().lower()
         
         # Arama filtresi
         if search_query:
@@ -6604,10 +6048,7 @@ class MinecraftLauncher:
         
         # Filtre seçenekleri
         self.console.print("\n[cyan]Filtre:[/cyan] [dim]all | release | snapshot | beta | alpha[/dim]")
-        try:
-            filter_choice = Prompt.ask("[cyan]>[/cyan]", choices=["all", "release", "snapshot", "beta", "alpha"], default="all")
-        except Exception:
-            filter_choice = "all"
+        filter_choice = Prompt.ask("[cyan]>[/cyan]", choices=["all", "release", "snapshot", "beta", "alpha"], default="all")
         
         if filter_choice != "all":
             versions = [v for v in versions if v["type"] == filter_choice]
@@ -6642,24 +6083,24 @@ class MinecraftLauncher:
         if len(versions) > 20:
             self.console.print(f"\n[dim]... ve {len(versions) - 20} surum daha[/dim]")
         
-        # Ok tuşları ile seçim
-        items = []
-        for i, v in enumerate(versions[:20], 1):
-            version_id = v["id"]
-            v_type = v["type"]
-            type_badge = {"release": "R", "snapshot": "S", "old_beta": "B", "old_alpha": "A"}.get(v_type, "?")
-            items.append({
-                "key": str(i),
-                "label": version_id,
-                "description": f"{type_badge} • {v['releaseTime'][:10]}",
-                "color": "cyan"
-            })
-        choice = self.navigator.show_menu("SÜRÜM LİSTESİ", items, show_exit=True)
-        if choice and choice != "0":
-            try:
-                idx = int(choice) - 1
-                if 0 <= idx < len(versions[:20]):
-                    version_id = versions[idx]["id"]
+        self.console.print("\n[dim]0 = Geri | Numara = Indir | D = Yonetim | M = Modlar[/dim]")
+        
+        try:
+            choice_input = Prompt.ask("\n[cyan]>[/cyan]")
+            
+            if choice_input == "0":
+                return
+            elif choice_input.upper() == "D":
+                self._show_version_management_menu()
+                return
+            elif choice_input.upper() == "M":
+                self._show_mod_menu()
+                return
+            
+            choice = int(choice_input)
+            
+            if 1 <= choice <= len(versions[:20]):
+                version_id = versions[choice-1]["id"]
                 if self._download_version(version_id):
                     self.console.print("[green]✅ Sürüm başarıyla indirildi![/green]")
                     if Confirm.ask("Şimdi başlatmak ister misiniz?", default=True):
@@ -6667,8 +6108,12 @@ class MinecraftLauncher:
                 else:
                     self.console.print("[red]❌ Sürüm indirilemedi![/red]")
                     input("[dim]Enter...[/dim]")
-            except Exception:
-                pass
+            else:
+                self.console.print("\n[red]Gecersiz secim![/red]\n")
+                input("[dim]Enter...[/dim]")
+        except ValueError:
+            self.console.print("\n[red]Gecersiz giris![/red]\n")
+            input("[dim]Enter...[/dim]")
     
     def _show_installed_versions(self):
         """İndirilen sürümleri göster - Minimal ve Kompakt"""
@@ -6681,8 +6126,7 @@ class MinecraftLauncher:
                 "[yellow]Henuz surum indirilmemis![/yellow]\n"
                 "[dim]Once bir surum indirmeniz gerekiyor.[/dim]",
                 border_style="yellow",
-                padding=(1, 2),
-                expand=True
+                padding=(1, 2)
             ))
             
             if Confirm.ask("\nSurum indirmek ister misiniz?"):
@@ -6694,48 +6138,42 @@ class MinecraftLauncher:
             f"[bold cyan]SÜRÜM YÖNETİMİ[/bold cyan]\n"
             f"[dim]Yüklü sürümler: {len(versions)}[/dim]",
             border_style="cyan",
-            padding=(1, 2),
-            expand=True
+            padding=(1, 2)
         ))
         
-        # Sürüm listesi (ok tuşları ile seçim listesi)
-        items = []
-        for i, version in enumerate(versions[:30], 1):
+        self.console.print()
+        
+        # Sürüm listesi
+        for i, version in enumerate(versions, 1):
             version_dir = self.versions_dir / version
             jar_file = version_dir / f"{version}.jar"
+            
             if jar_file.exists():
                 size_mb = round(jar_file.stat().st_size / (1024*1024), 1)
-                desc = f"{size_mb:.0f} MB"
+                self.console.print(f"  [cyan]{i}[/cyan]  {version:15}  [dim]{size_mb:.0f} MB[/dim]")
             else:
-                desc = "Eksik"
-            items.append({"key": str(i), "label": version, "description": desc, "color": "cyan"})
-        selection = self.navigator.show_menu("SÜRÜMLER (Seçim)", items, show_exit=True)
-        if selection is None or selection == "0":
+                self.console.print(f"  [cyan]{i}[/cyan]  {version:15}  [red]Eksik[/red]")
+        
+        self.console.print()
+        self.console.print("  [cyan]1[/cyan]  Sürüm Başlat")
+        self.console.print("  [cyan]2[/cyan]  Sürüm Yönet")
+        self.console.print("  [cyan]3[/cyan]  Sürüm Sil")
+        self.console.print("  [cyan]4[/cyan]  Sürüm Onar")
+        self.console.print()
+        self.console.print("  [dim]0[/dim]  Geri")
+        
+        choice = Prompt.ask("\n[cyan]>[/cyan]", choices=["0", "1", "2", "3", "4"])
+        
+        if choice == "0":
             return
-        try:
-            idx = int(selection) - 1
-            if 0 <= idx < len(versions[:30]):
-                # İkincil aksiyon menüsü
-                action = self.navigator.show_menu(
-                    f"{versions[idx]} - İşlem",
-                    [
-                        {"key": "1", "label": "Sürüm Başlat", "description": "Oyunu başlat", "color": "green"},
-                        {"key": "2", "label": "Sürüm Yönet", "description": "Detaylı yönetim", "color": "yellow"},
-                        {"key": "3", "label": "Sürüm Sil", "description": "Kaldır", "color": "red"},
-                        {"key": "4", "label": "Sürüm Onar", "description": "Dosyaları onar", "color": "blue"}
-                    ],
-                    show_exit=True
-                )
-                if action == "1":
-                    self._launch_minecraft(versions[idx])
-                elif action == "2":
-                    self._manage_version(versions)
-                elif action == "3":
-                    self._delete_version(versions)
-                elif action == "4":
-                    self._repair_version(versions)
-        except Exception:
-            pass
+        elif choice == "1":
+            self._select_and_launch_version(versions)
+        elif choice == "2":
+            self._manage_version(versions)
+        elif choice == "3":
+            self._delete_version(versions)
+        elif choice == "4":
+            self._repair_version(versions)
     
     def _select_and_launch_version(self, versions):
         """Sürüm seç ve başlat"""
@@ -7001,33 +6439,46 @@ class MinecraftLauncher:
         
         self.console.print()
         
-        # Ok tuşları ile seçim
+        # Create menu items for versions
         menu_items = []
-        for i, version in enumerate(versions[:20], 1):
+        for i, version in enumerate(versions[:20], 1):  # Limit to 20 versions
             version_dir = self.versions_dir / version
             jar_file = version_dir / f"{version}.jar"
+            
+            # Mod loader türünü belirle
+            loader_type = ""
             if "forge" in version.lower():
-                loader = "⚒️ Forge"
+                loader_type = "⚒️ Forge"
             elif "fabric" in version.lower():
-                loader = "🧵 Fabric"
+                loader_type = "🧵 Fabric"
             elif "quilt" in version.lower():
-                loader = "🎨 Quilt"
+                loader_type = "🎨 Quilt"
             else:
-                loader = "⭐ Vanilla"
+                loader_type = "⭐ Vanilla"
+            
             if jar_file.exists():
                 size_mb = round(jar_file.stat().st_size / (1024*1024), 1)
-                desc = f"{loader} - {size_mb:.0f} MB"
+                description = f"{loader_type} - {size_mb:.0f} MB"
             else:
-                desc = f"{loader} - Eksik JAR"
-            menu_items.append({"key": str(i), "label": version, "description": desc, "color": "cyan"})
+                description = f"{loader_type} - Eksik JAR"
+            
+            menu_items.append({
+                "key": str(i),
+                "label": version,
+                "description": description,
+                "color": "cyan"
+            })
+        
+        # Show menu
         choice = self.navigator.show_menu("MINECRAFT BAŞLAT", menu_items, show_exit=True)
+        
         if choice and choice != "0":
             try:
-                idx = int(choice) - 1
-                if 0 <= idx < len(versions):
-                    self.console.print(f"[yellow]🚀 Minecraft başlatılıyor: {versions[idx]}[/yellow]")
-                    self._launch_minecraft(versions[idx])
-            except:
+                choice_num = int(choice)
+                if 1 <= choice_num <= len(versions):
+                    version_id = versions[choice_num - 1]
+                    self._launch_minecraft(version_id)
+        except ValueError:
                 pass
     
     def _show_version_management(self):
@@ -7129,22 +6580,24 @@ class MinecraftLauncher:
                 self._show_version_info(version_id)
     
     def _show_advanced_download_menu(self):
-        """Gelişmiş sürüm indirme menüsü"""
+        """Gelişmiş sürüm indirme menüsü - Keyboard navigation ile"""
+        menu_items = [
+            {"key": "1", "label": "📋 Tüm Sürümler", "description": "Tüm mevcut sürümleri listele", "color": "cyan"},
+            {"key": "2", "label": "📊 Popüler Sürümler", "description": "En çok kullanılan sürümler", "color": "green"},
+            {"key": "3", "label": "🎮 Snapshots", "description": "Geliştirme sürümleri", "color": "yellow"},
+            {"key": "4", "label": "🔧 Release Candidates", "description": "Test sürümleri", "color": "yellow"},
+            {"key": "5", "label": "📈 En Güncel Sürümler", "description": "Son çıkan sürümler", "color": "green"},
+            {"key": "6", "label": "⚒️ Forge Sürümleri", "description": "Forge mod loader sürümleri", "color": "red"},
+            {"key": "7", "label": "🧵 Fabric Sürümleri", "description": "Fabric mod loader sürümleri", "color": "blue"},
+            {"key": "8", "label": "⚡ OptiFine Bilgisi", "description": "OptiFine hakkında bilgi", "color": "magenta"}
+        ]
+        
         while True:
-            menu_items = [
-                {"key": "1", "label": "📋 Tüm Sürümler", "description": "Tüm mevcut sürümleri listele", "color": "cyan"},
-                {"key": "2", "label": "📊 Popüler Sürümler", "description": "En çok kullanılan sürümler", "color": "green"},
-                {"key": "3", "label": "🎮 Snapshots", "description": "Geliştirme sürümleri", "color": "yellow"},
-                {"key": "4", "label": "🔧 Release Candidates", "description": "Test sürümleri", "color": "yellow"},
-                {"key": "5", "label": "📈 En Güncel Sürümler", "description": "Son çıkan sürümler", "color": "green"},
-                {"key": "6", "label": "⚒️ Forge Sürümleri", "description": "Forge mod loader sürümleri", "color": "red"},
-                {"key": "7", "label": "🧵 Fabric Sürümleri", "description": "Fabric mod loader sürümleri", "color": "blue"},
-                {"key": "8", "label": "⚡ OptiFine Bilgisi", "description": "OptiFine hakkında bilgi", "color": "magenta"}
-            ]
             choice = self.navigator.show_menu("SÜRÜM İNDİR", menu_items, show_exit=True)
-            if choice is None or choice == "0":
+            
+            if choice == "0" or choice is None:
                 break
-            if choice == "1":
+            elif choice == "1":
                 self._show_versions_menu()
             elif choice == "2":
                 self._show_popular_versions()
@@ -7725,25 +7178,11 @@ class MinecraftLauncher:
             ))
             self.console.print()
             
-            # Ana menü (ok tuşları ile gezinme)
-            choice = self.navigator.show_menu(
-                "ANA MENÜ",
-                [
-                    {"key": "1", "label": "Minecraft Baslat", "description": "Oyunu baslat", "color": "green"},
-                    {"key": "2", "label": "Surum Indir", "description": "Yeni surum yukle", "color": "green"},
-                    {"key": "3", "label": "Surumlerim", "description": "Yuklu surumleri gor", "color": "green"},
-                    {"key": "4", "label": "Skin Yonetimi", "description": "Karakter goruntusunu degistir", "color": "blue"},
-                    {"key": "5", "label": "Mod Yonetimi", "description": "Modlari ara ve yukle", "color": "blue"},
-                    {"key": "6", "label": "Ayarlar", "description": "Launcher ayarlarini duzenle", "color": "yellow"},
-                    {"key": "7", "label": "Performans", "description": "Sistem kaynaklarini izle", "color": "yellow"},
-                    {"key": "8", "label": "Hakkinda", "description": "Launcher hakkinda bilgi", "color": "yellow"}
-                ],
-                show_exit=True
-            )
-            if choice is None:
-                choice = "0"
+            # Ana menü göster - Keyboard navigation ile
+            menu_items = self._create_main_menu()
+            choice = self.navigator.show_menu("ANA MENÜ", menu_items, show_exit=True)
             
-            if choice == "0":
+            if choice == "0" or choice is None:
                 # Çıkış - Güzel mesaj
                 os.system('clear')
                 goodbye_msg = f"""
@@ -7796,7 +7235,7 @@ class MinecraftLauncher:
                         self.console.print(f"  [cyan]{idx:2}[/cyan]  {version_id:15}  [dim]{size:.0f} MB[/dim]")
                     
                     if len(installed) > 15:
-                        self.console.print(f"\n[dim]...{len(installed) - 15} surum daha[/dim]")
+                        self.console.print(f"\n[dim]... ve {len(installed) - 15} surum daha[/dim]")
                     
                     self.console.print()
                     self.console.print("[dim]0 = Geri | Numara = Baslat | M = Yonet[/dim]")

@@ -1,0 +1,41 @@
+simdi oncelilkle projeyni9n yapsini degistiriyorum artik butun scriptler python iler yazilacak. Derleme flaan haric. 
+Ilk ana menu dahil hersey pytjhon ile olacak. rich ve terminal uzerinde ok tuslari ile hareketi saglayan bir 
+kutuphane ile yap. Ilk acilista gelsin hemen ana menu. Sonra ise yine soyledigim butun kurulum scriptlerimnin daha 
+gelismis ve pythondan yazilmis halleri ile kurulsun. Live boot denirser yine destop diretk gelsin. kurulum 
+denirsedirekt termeinla uzeridnen en iyi sekilde kurulsun. Hersedy tma olsun herseyi dusun terminal arayuzu icin 
+rich kutuphanesini ve secimler icin de ok tuslari ile hareket etmeyi saglayan kutuphanleri kullan. Onceki gereksiz 
+butun yapilari sil mesela gereksz termanil arayuzlerri gibi hepsini yeni ve optmize temiz bir yapiya sahip python ile
+yap. Ayri olafrka ne eklenebilri dusun ve sana projedeki butun islevlerin  dogru sekilde aktarildigindan emin ol.
+Proje dizinini buna ogre yeniden yapilandir eski butun iso dosyalarini sil ama ana yapiyi koru mesela boot hook gibi...
+Ama yine de gelsitirilmesi gereken eski yapilari gelsitir. Hersey mukkemel olsun. Sistemin ismini de BerkeOS olarak bir
+kez daha degistir. (Beelestia yerine BerkeOS olsun) buna gore eski ascileri yenile caelestia Destoptaki ascileri ve yapilatri yine
+buna gore duzenle. Ayrica belli gereksiz ve goz yoran kisimlari kaldir daha kullanici dostu yap. Kurulum kisminda ise
+Disk bicimlendirme , kullanici olusturma ve dahasi olsubn kurulumda. Birden cok kullanici olusturulabilsin.Bunun gibi
+olsunve ok tuslari ile secim kutuphanesi kullanililacak sekile yap. Ayrivca Hyprland , python gibi bagimlilik.,lar kurulu gelsin. 
+Bir de mesela log in manager de yap kurulum sonrasi log in orada yapilsin. Bu yer terminal arayuzunde rich ve diger
+guzellestirme kutuphanelerini kullan. Burada ilk boot asci animasyonundansorna hemen gelsin. Sonra guel bir sekilde log in yapabilsin.
+boot animasyonu sirasinda gefrekli tusa basarak kurtarma menusune girebilsin. O menude ise kurtarma secenekleri olsubn bircok.
+Bunun disinda cogu kurtarma ek optimzasyon ve live boot icin script bulunsun. Bunun disidna "Berke wifi" ile wifi baglantiusi kurabilecekleri
+yine rich ve guzel kutuphanler ile guzellestirilmis bir wifi baglani menusu sistem terminlinden erisilebilsin.
+Bunun disina ekbir suru komut ekle. Bir terminal dosya yoneticisi yine rich ve ok tuslari secim menusu ile kurllanilsin
+"Berke File" ile bu acilsin. Ayni sekilde bhir terminal interneten dosya aratilabilsin ve cok gelismis olsun. onu da
+"Berke Net" komutu ile erisilsin. Bunun disinda Bir muzik calar da ekle. Yinbe rich ve diger kutuphanelri kullanarak olsun
+ve en iyi hale gelsin. Bunun disinda bir Terminal metin editoru olsun "Berdit <dosya yolu ve adi>"" selkilde acilsin
+Bunun disinda wine ile calisan bir exe acici olsun onuda "Bergame" yarayuzu baslatabilsin ya da direkt dosya
+yolu girilerek wine ile baslatsin. En optimze ve entegere olsun. Bunun disidna aklina gelen birsey varsa ekle. 
+Bunun disinda bir antivirus ve sistem saglik testi olsun. Otomatik duzeltebilsin. "Bertest" komutu ile arayuze
+girilsin ve oradan yine rich ve gerekli kutuphane modulelri ileve guclu bir backend entegrasyonu ile calisin.
+Hersey tma calsiin ve en iyi sekilde olsun. Caeelestia Dotsdan alinmis destop arayuzu de tam calsin.  Bundan sonra eski
+isolari falan cikartigindan emin ol. Butun uygulama ve ek ozelliklerin listlendigi bir ana menu olsun ve oyle bir sistem olsun
+ki eklenen yien olzelikler otomatik listlensin ve ok tuslari iel secilerek onu baslatilabilsin bir de help bolumu olsun
+orada arayuzu omayan komutu kullanimlar dahil herseyin listelendigi guzel bir help bolumu olsun. Bir hakijnda bolumu olsun ve her
+komutu icin bir --version komutu olsun orada uygulama siurumu ana sistem surumu yapimci ve uygulsamanin basit aciklamasi
+yer alsin. Simdi herseyi anla ve yapmaya hazir ol. Nasil eklenbilri ve gelsitirlebnilir ise ekleyebilirsin. Sadece eski yapilari duzeltebilsin
+ve hersey hazir olunca calsir ise olustur. Hersey eksiksiz olsun. Eger projeyi hatirla,miyor isen direkt oncebir indexle
+ve deneme icin sudo sifresi gereskirse otomatik ekle her kotmu ona gore yaz sudo sifrem:4997. butun onay gereken komutlari ona gore
+yaz ve oyle calisitir. Hersyi durmaksizin hazir et ve tekrar tekrar don ve kontrol et. proje dizin yapisi9ni en bastsan yarat.
+En sonda ise eklenecek ya da gelsitirloecek seyleri bir textwe yaz ve her sonda onu guncelle ilk promta ben soyleyene kadar
+isoyu derleme sadece projeyi en iyi hale getir. Unutma aertik,m butun scritpler yerine python kodlari kullanilacak.
+Simdi herseyi anladiysan direkt basla hic durma mukkmel olsujn ne eklenbilr ise bana sorma ekle. Hersey tam olsun Unutma
+
+

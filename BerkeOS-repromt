@@ -1,0 +1,14 @@
+simdi oncelilkle projeyni9n yapsini degistiriyorum artik butun scriptler python iler yazilacak. Derleme flaan haric. 
+Ilk ana menu dahil hersey pytjhon ile olacak. rich ve terminal uzerinde ok tuslari ile hareketi saglayan bir 
+kutuphane ile yap. Ilk acilista gelsin hemen ana menu. Sonra ise yine soyledigim butun kurulum scriptlerimnin daha 
+gelismis ve pythondan yazilmis halleri ile kurulsun. Live boot denirser yine destop diretk gelsin. kurulum 
+denirsedirekt termeinla uzeridnen en iyi sekilde kurulsun. Hersedy tma olsun herseyi dusun terminal arayuzu icin 
+rich kutuphanesini ve secimler icin de ok tuslari ile hareket etmeyi saglayan kutuphanleri kullan. Onceki gereksiz 
+butun yapilari sil mesela gereksz termanil arayuzlerri gibi hepsini yeni ve optmize temiz bir yapiya sahip python ile
+yap. Ayri olafrka ne eklenebilri dusun ve sana projedeki butun islevlerin  dogru sekilde aktarildigindan emin ol.
+Proje dizinini buna ogre yeniden yapilandir eski butun iso dosyalarini sil ama ana yapiyi koru mesela boot hook gibi...
+Ama yine de gelsitirilmesi gereken eski yapilari gelsitir. Hersey mukkemel olsun. Sistemin ismini de BerkeOS olarak bir
+kez daha degistir. (Beelestia yerine BerkeOS olsun) buna gore eski ascileri yenile caelestia Destoptaki ascileri ve yapilatri yine
+buna gore duzenle. Ayrica belli gereksiz ve goz yoran kisimlari kaldir daha kullanici dostu yap. Kurulum kisminda ise
+Disk bicimlendirme , kullanici olusturma ve dahasi olsubn kurulumda. Birden cok kullanici olusturulabilsin.Bunun gibi
+olsuynve ok tuslari ile3 secim kutuphanesi kullanililacak sekile yap
